@@ -555,6 +555,56 @@ async def index(request: Request) -> HTMLResponse:
         let isSpeaking = false;
         let isProcessing = false;
         let audioContext = null;
+        let userLocation = null;  // Geolocation data
+
+        // Request geolocation on page load
+        function requestGeolocation() {{
+            if ('geolocation' in navigator) {{
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {{
+                        userLocation = {{
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        }};
+                        console.log('Geolocation acquired:', userLocation);
+                        // Try to reverse geocode to get city name
+                        reverseGeocode(userLocation.latitude, userLocation.longitude);
+                    }},
+                    (error) => {{
+                        console.log('Geolocation denied or unavailable:', error.message);
+                        // Default to Melbourne if geolocation fails
+                        userLocation = {{ city: 'Melbourne', timezone: 'Australia/Melbourne' }};
+                    }},
+                    {{ enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }}
+                );
+            }} else {{
+                console.log('Geolocation not supported');
+                userLocation = {{ city: 'Melbourne', timezone: 'Australia/Melbourne' }};
+            }}
+        }}
+
+        // Reverse geocode to get city name (using free API)
+        async function reverseGeocode(lat, lon) {{
+            try {{
+                const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${{lat}}&lon=${{lon}}&format=json`);
+                if (resp.ok) {{
+                    const data = await resp.json();
+                    const city = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality;
+                    const country = data.address?.country_code?.toUpperCase();
+                    if (city) {{
+                        userLocation.city = city;
+                        userLocation.country = country;
+                        console.log('Reverse geocode:', city, country);
+                    }}
+                }}
+            }} catch (e) {{
+                console.log('Reverse geocode failed:', e);
+            }}
+        }}
+
+        // Request geolocation on page load
+        requestGeolocation();
 
         // Elements
         const chat = document.getElementById('chat');
@@ -967,8 +1017,14 @@ async def index(request: Request) -> HTMLResponse:
             textInput.style.height = 'auto';
 
             if (isConnected && room) {{
-                // Send via LiveKit data channel
-                const data = JSON.stringify({{ type: 'text', text }});
+                // Send via LiveKit data channel with geolocation context
+                const data = JSON.stringify({{
+                    type: 'text',
+                    text,
+                    context: {{
+                        location: userLocation
+                    }}
+                }});
                 try {{
                     room.localParticipant.publishData(new TextEncoder().encode(data), {{ reliable: true }});
                     addProcessing('Processing');

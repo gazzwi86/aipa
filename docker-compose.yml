@@ -8,9 +8,8 @@ services:
       - "8000:8000"
     volumes:
       # Mount workspace for persistence (agent works here)
+      # This includes workspace/.claude with the Ultra agent config
       - ./workspace:/workspace
-      # Claude config directory (read-only in production)
-      - ./.claude:/home/aipa/.claude:ro
     environment:
       # Authentication
       - AUTH_PASSWORD_HASH=${AUTH_PASSWORD_HASH}
@@ -30,8 +29,10 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       # Application
       - AGENT_NAME=${AGENT_NAME:-Ultra}
-      - ENVIRONMENT=production
+      - ENVIRONMENT=${ENVIRONMENT:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Testing/Development (set ENABLE_CHAT_API=true in .env for eval tests)
+      - ENABLE_CHAT_API=${ENABLE_CHAT_API:-false}
     env_file:
       - .env
     restart: unless-stopped

@@ -357,7 +357,10 @@ def pytest_addoption(parser):
 def ollama_judge():
     """Shared Ollama judge for evaluating agent responses.
 
-    Uses gemma3:12b by default. Requires Ollama running on localhost:11434.
+    Uses gemma3n:e4b by default for speed. Set OLLAMA_JUDGE_MODEL env var
+    to use a different model (e.g., gemma3:12b for higher quality).
+
+    Requires Ollama running on localhost:11434.
     """
     try:
         from tests.evals.judge.ollama_judge import OllamaJudge
@@ -365,7 +368,9 @@ def ollama_judge():
         pytest.skip("DeepEval not installed - run: pip install deepeval")
         return None
 
-    judge = OllamaJudge(model="gemma3:12b")
+    # Use qwen3:8b for faster tests, configurable via env var
+    model = os.getenv("OLLAMA_JUDGE_MODEL", "qwen3:8b")
+    judge = OllamaJudge(model=model)
 
     # Verify Ollama is accessible
     try:

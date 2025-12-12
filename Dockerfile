@@ -55,7 +55,9 @@ COPY --chown=aipa:aipa pyproject.toml uv.lock /app/
 USER aipa
 
 # Install dependencies (includes livekit-agents and plugins)
-RUN uv sync --frozen --no-dev
+# Use system Python to avoid symlinks to host system paths in the venv
+RUN uv venv /app/.venv --python python3 && \
+    uv sync --frozen --no-dev
 
 # Copy application code
 COPY --chown=aipa:aipa . /app

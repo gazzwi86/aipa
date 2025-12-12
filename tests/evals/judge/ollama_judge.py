@@ -71,7 +71,9 @@ class OllamaJudge(DeepEvalBaseLLM):
         Returns:
             Model response as string
         """
-        async with httpx.AsyncClient() as client:
+        # Use explicit Timeout object for async client
+        timeout = httpx.Timeout(timeout=300.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 f"{self.base_url}/api/generate",
                 json={
@@ -79,7 +81,6 @@ class OllamaJudge(DeepEvalBaseLLM):
                     "prompt": prompt,
                     "stream": False,
                 },
-                timeout=self.timeout,
             )
             response.raise_for_status()
             return response.json()["response"]

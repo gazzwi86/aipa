@@ -1,6 +1,6 @@
 # AIPA Testing Strategy
 
-This document describes the testing approach for AIPA, covering unit tests, integration tests, and agent evaluation tests.
+This document describes the testing approach for AIPA, covering unit tests, integration tests, and agent evaluation tests with LLM-as-judge.
 
 ## Overview
 
@@ -11,6 +11,13 @@ AIPA uses a multi-layered testing strategy:
 | Unit Tests | Test individual components | None | `uv run pytest` |
 | Integration Tests | Test with external services | External services | `uv run pytest --run-integration` |
 | Agent Eval Tests | Evaluate agent response quality | Running agent + Ollama | `uv run pytest --run-agent-evals` |
+
+### Test Philosophy
+
+Agent tests use two complementary approaches:
+
+1. **Fast Assertion Tests** - Simple string checks for deterministic aspects (identity, basic behavior)
+2. **LLM-as-Judge Tests** - Semantic evaluation for subjective quality (helpfulness, accuracy, safety)
 
 ## Test Directory Structure
 
@@ -24,8 +31,9 @@ tests/
 ├── e2e/                        # End-to-end tests (skipped by default)
 │   └── test_voice_flow.py
 └── evals/                      # Agent evaluation tests
-    ├── conftest.py             # Eval-specific fixtures
-    ├── test_agent_evals.py     # 20 core evaluation tests
+    ├── conftest.py             # Eval-specific fixtures (auth, chat, judge)
+    ├── test_conversations.py   # Fast assertion tests + multi-turn (10+ tests)
+    ├── test_agent_evals.py     # LLM-as-judge semantic tests
     └── judge/                  # LLM-as-judge components
         ├── __init__.py
         ├── ollama_judge.py     # Custom Ollama model for DeepEval
@@ -91,10 +99,13 @@ LLM-as-judge evaluates responses semantically:
    docker compose up -d
    ```
 
-2. **Ollama with gemma3:12b**
+2. **Ollama with qwen3:8b** (recommended for speed)
    ```bash
    # Ollama should be running on localhost:11434
-   ollama pull gemma3:12b
+   ollama pull qwen3:8b
+
+   # Or use gemma3:12b for higher quality (slower)
+   # export OLLAMA_JUDGE_MODEL=gemma3:12b
    ```
 
 3. **Environment Variables**
@@ -114,14 +125,20 @@ LLM-as-judge evaluates responses semantically:
 ### Running Agent Evals
 
 ```bash
-# Run all agent evaluation tests
+# Run all agent evaluation tests (fast + LLM-judge)
+uv run pytest tests/evals/ --run-agent-evals -v
+
+# Run only fast assertion tests (no LLM judging, ~4 minutes)
+uv run pytest tests/evals/test_conversations.py --run-agent-evals -v
+
+# Run LLM-as-judge tests (requires Ollama, slower)
 uv run pytest tests/evals/test_agent_evals.py --run-agent-evals -v
 
 # Run specific test class
-uv run pytest tests/evals/test_agent_evals.py::TestAgentIdentity --run-agent-evals -v
+uv run pytest tests/evals/test_conversations.py::TestPhilosophy --run-agent-evals -v
 
 # Run excluding integration-requiring tests
-uv run pytest tests/evals/test_agent_evals.py --run-agent-evals -v -m "agent_eval and not integration"
+uv run pytest tests/evals/ --run-agent-evals -v -m "agent_eval and not integration"
 ```
 
 ### Evaluation Metrics
@@ -168,6 +185,50 @@ The 20 agent evaluation tests cover:
 - Complex queries get detailed responses
 - Handles unknown/nonsense input gracefully
 
+### Fast Assertion Tests (test_conversations.py)
+
+For faster CI/CD feedback, many tests use simple string assertions instead of LLM judging:
+
+```python
+@pytest.mark.agent_eval
+class TestIdentityFast:
+    def test_name_contains_ultra(self, chat):
+        """Agent should mention 'Ultra' when asked its name."""
+        response = chat("What is your name?")
+        assert "ultra" in response.lower()
+
+    def test_owner_contains_gareth(self, chat):
+        """Agent should mention 'Gareth' when asked about owner."""
+        response = chat("Who created you?")
+        assert "gareth" in response.lower()
+```
+
+**Test Classes:**
+
+| Class | Tests | Description |
+|-------|-------|-------------|
+| `TestIdentityFast` | 2 | Name and owner checks |
+| `TestSessionManagement` | 1 | Session ID generation |
+| `TestPhilosophy` | 3 | Approval requests, transparency, helpfulness |
+| `TestStateHandling` | 1 | Graceful incomplete input handling |
+| `TestResponseQualityFast` | 3 | Math accuracy, response time, non-empty responses |
+
+### Multi-Turn Session Limitations
+
+Claude CLI requires different flags for session management:
+- `--session-id <uuid>` - Create a new session
+- `--resume <uuid>` - Continue an existing session
+
+**Current Status**: Multi-turn tests are skipped pending server-side session tracking implementation. The chat API currently treats each call as independent.
+
+```python
+@pytest.mark.skip(reason="Multi-turn requires Claude CLI session management")
+class TestMultiTurn:
+    def test_remembers_context_within_session(self, chat):
+        """Agent should remember context within same session."""
+        # TODO: Implement session state tracking
+```
+
 ### Architecture
 
 ```
@@ -181,7 +242,7 @@ The 20 agent evaluation tests cover:
 │                                                              │
 │  3. Response returned ◄────────── Agent response             │
 │                                                              │
-│  4. DeepEval evaluates ─────────► Ollama (gemma3:12b)        │
+│  4. DeepEval evaluates ─────────► Ollama (qwen3:8b)          │
 │                                                              │
 │  5. Metrics scored ◄────────────── Pass/Fail + scores        │
 │                                                              │
@@ -278,3 +339,57 @@ Tests run in GitHub Actions:
 - Agent eval tests are local-only (require Ollama)
 
 See [CI_CD.md](CI_CD.md) for CI/CD configuration details.
+
+## Troubleshooting
+
+### Common Issues
+
+**"Chat API disabled"**
+```bash
+# Enable the chat API
+export ENABLE_CHAT_API=true
+docker compose up -d
+```
+
+**"Authentication failed"**
+```bash
+# Set the test password (same as your login password)
+export TEST_PASSWORD="your-password"
+```
+
+**"Cannot connect to agent"**
+```bash
+# Verify server is running
+curl http://localhost:8000/health
+
+# Check logs
+docker compose logs aipa
+```
+
+**"Ollama not accessible"**
+```bash
+# Verify Ollama is running
+curl http://localhost:11434/api/tags
+
+# Pull the recommended model
+ollama pull qwen3:8b
+```
+
+**LLM-as-judge timeout**
+- DeepEval has internal timeout limits (~207s)
+- Use faster models like `qwen3:8b` instead of `gemma3:12b`
+- Fast assertion tests don't use LLM judging
+
+**Agent identifies as "DEV Agent" instead of "Ultra"**
+- Ensure docker-compose.yml mounts `./workspace:/workspace` (not `./.claude`)
+- The agent should run from `/workspace` to pick up `workspace/.claude/CLAUDE.md`
+
+### Environment Variables Reference
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `TEST_PASSWORD` | Login password for auth | (required) |
+| `ENABLE_CHAT_API` | Enable /api/chat endpoint | `false` |
+| `EVAL_API_ENDPOINT` | Agent API base URL | `http://localhost:8000` |
+| `OLLAMA_JUDGE_MODEL` | Model for LLM-as-judge | `qwen3:8b` |
+| `EVAL_TIMEOUT` | Test timeout in seconds | `60` |

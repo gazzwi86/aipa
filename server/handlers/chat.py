@@ -55,6 +55,7 @@ async def call_claude_code(
     model: str = "sonnet",
     session_id: str | None = None,
     oauth_token: str | None = None,
+    working_dir: str | None = None,
 ) -> str:
     """Call Claude Code CLI and return the response.
 
@@ -63,15 +64,18 @@ async def call_claude_code(
         model: Model to use (sonnet, opus, etc.)
         session_id: Optional session ID for conversation continuity
         oauth_token: OAuth token for authentication
+        working_dir: Working directory for Claude (defaults to /workspace)
 
     Returns:
         The agent's response as a string
     """
     # Build CLI command
+    # Note: Multi-turn sessions would require tracking state to use
+    # --session-id for new sessions and --resume for continuing
     cmd = ["claude", "-p", "--model", model, "--tools", ""]
 
-    if session_id:
-        cmd.extend(["--session-id", session_id])
+    # Session ID tracking not yet implemented - each call is independent
+    # TODO: Implement session state tracking to support multi-turn
 
     # Set up environment with OAuth token
     env = os.environ.copy()
@@ -79,7 +83,10 @@ async def call_claude_code(
     if token:
         env["CLAUDE_CODE_OAUTH_TOKEN"] = token
 
-    logger.info(f"Calling Claude Code CLI, prompt length: {len(prompt)}")
+    # Use /workspace by default to pick up production agent config
+    cwd = working_dir or os.getenv("WORKSPACE", "/workspace")
+
+    logger.info(f"Calling Claude Code CLI from {cwd}, prompt length: {len(prompt)}")
 
     try:
         # Pass prompt via stdin
@@ -89,6 +96,7 @@ async def call_claude_code(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            cwd=cwd,
         )
 
         # Write prompt to stdin and get response

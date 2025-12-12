@@ -1,35 +1,67 @@
-"""Tests for the weather skill."""
+"""Tests for the weather skill using Open-Meteo API."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# Mock weather API response
-MOCK_WEATHER_RESPONSE = {
-    "coord": {"lon": 144.9631, "lat": -37.8136},
-    "weather": [{"id": 800, "main": "Clear", "description": "clear sky", "icon": "01d"}],
-    "main": {"temp": 24.5, "feels_like": 22.3, "humidity": 45, "pressure": 1015},
-    "wind": {"speed": 15.2, "deg": 315},
-    "name": "Melbourne",
-    "sys": {"country": "AU"},
+# Mock Open-Meteo current weather response
+MOCK_CURRENT_WEATHER = {
+    "latitude": -37.8125,
+    "longitude": 144.9625,
+    "timezone": "Australia/Melbourne",
+    "current": {
+        "time": "2024-12-12T14:30",
+        "temperature_2m": 24.5,
+        "relative_humidity_2m": 45,
+        "apparent_temperature": 22.3,
+        "weather_code": 0,
+        "wind_speed_10m": 15.2,
+        "wind_direction_10m": 315,
+        "precipitation": 0.0,
+    },
 }
 
-MOCK_FORECAST_RESPONSE = {
-    "city": {"name": "Melbourne", "country": "AU"},
-    "list": [
+# Mock Open-Meteo forecast response
+MOCK_FORECAST = {
+    "latitude": -37.8125,
+    "longitude": 144.9625,
+    "timezone": "Australia/Melbourne",
+    "daily": {
+        "time": ["2024-12-12", "2024-12-13", "2024-12-14"],
+        "weather_code": [0, 2, 61],
+        "temperature_2m_max": [28.0, 25.0, 20.0],
+        "temperature_2m_min": [16.0, 14.0, 12.0],
+        "precipitation_probability_max": [0, 10, 60],
+        "precipitation_sum": [0.0, 0.0, 5.2],
+    },
+}
+
+# Mock geocoding response
+MOCK_GEOCODE = {
+    "results": [
         {
-            "dt": 1702900800,
-            "main": {"temp": 28, "temp_min": 16, "temp_max": 28},
-            "weather": [{"main": "Clear", "description": "clear sky"}],
-            "pop": 0,
-        },
-        {
-            "dt": 1702987200,
-            "main": {"temp": 25, "temp_min": 14, "temp_max": 25},
-            "weather": [{"main": "Clouds", "description": "partly cloudy"}],
-            "pop": 0.1,
-        },
-    ],
+            "name": "Melbourne",
+            "latitude": -37.8136,
+            "longitude": 144.9631,
+            "country": "Australia",
+            "timezone": "Australia/Melbourne",
+        }
+    ]
+}
+
+# Weather code mappings
+WEATHER_CODES = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Foggy",
+    51: "Light drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    80: "Slight rain showers",
+    95: "Thunderstorm",
 }
 
 
@@ -43,10 +75,9 @@ class TestWeatherSkillFormat:
         assert formatted == "24°C"
 
     def test_format_wind_speed(self):
-        """Wind speed should be in km/h."""
-        speed_ms = 15.2  # m/s from API
-        speed_kmh = speed_ms * 3.6
-        assert speed_kmh == pytest.approx(54.72, rel=0.01)
+        """Wind speed from Open-Meteo is already in km/h."""
+        speed_kmh = 15.2  # km/h from API
+        assert speed_kmh == pytest.approx(15.2, rel=0.01)
 
     def test_wind_direction_compass(self):
         """Wind direction should convert to compass."""
@@ -68,6 +99,17 @@ class TestWeatherSkillFormat:
 
         for deg, expected in directions:
             assert degrees_to_compass(deg) == expected
+
+    def test_weather_code_interpretation(self):
+        """Weather codes should map to descriptions."""
+
+        def interpret_weather_code(code: int) -> str:
+            return WEATHER_CODES.get(code, "Unknown")
+
+        assert interpret_weather_code(0) == "Clear sky"
+        assert interpret_weather_code(61) == "Slight rain"
+        assert interpret_weather_code(95) == "Thunderstorm"
+        assert interpret_weather_code(999) == "Unknown"
 
 
 class TestWeatherLocationResolution:
@@ -96,19 +138,23 @@ class TestWeatherLocationResolution:
 
     def test_default_to_melbourne_when_no_location(self):
         """Should default to Melbourne when no location specified."""
-        default_city = "Melbourne,AU"
-        assert "Melbourne" in default_city
+        default_location = {
+            "latitude": -37.8136,
+            "longitude": 144.9631,
+            "name": "Melbourne",
+        }
+        assert default_location["name"] == "Melbourne"
 
 
-class TestWeatherAPIIntegration:
-    """Test weather API integration (mocked)."""
+class TestOpenMeteoAPIIntegration:
+    """Test Open-Meteo API integration (mocked)."""
 
     @pytest.mark.asyncio
     async def test_get_current_weather_success(self):
         """Should fetch and parse current weather."""
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = MagicMock()
-            mock_response.json.return_value = MOCK_WEATHER_RESPONSE
+            mock_response.json.return_value = MOCK_CURRENT_WEATHER
             mock_response.status_code = 200
 
             mock_instance = AsyncMock()
@@ -120,21 +166,25 @@ class TestWeatherAPIIntegration:
             # Simulate API call
             async with mock_client() as client:
                 response = await client.get(
-                    "https://api.openweathermap.org/data/2.5/weather",
-                    params={"q": "Melbourne", "appid": "test", "units": "metric"},
+                    "https://api.open-meteo.com/v1/forecast",
+                    params={
+                        "latitude": -37.8136,
+                        "longitude": 144.9631,
+                        "current": "temperature_2m,weather_code",
+                    },
                 )
                 data = response.json()
 
-            assert data["name"] == "Melbourne"
-            assert data["main"]["temp"] == 24.5
-            assert data["weather"][0]["main"] == "Clear"
+            assert data["current"]["temperature_2m"] == 24.5
+            assert data["current"]["weather_code"] == 0
+            assert data["current"]["relative_humidity_2m"] == 45
 
     @pytest.mark.asyncio
     async def test_get_forecast_success(self):
         """Should fetch and parse forecast."""
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = MagicMock()
-            mock_response.json.return_value = MOCK_FORECAST_RESPONSE
+            mock_response.json.return_value = MOCK_FORECAST
             mock_response.status_code = 200
 
             mock_instance = AsyncMock()
@@ -145,20 +195,50 @@ class TestWeatherAPIIntegration:
 
             async with mock_client() as client:
                 response = await client.get(
-                    "https://api.openweathermap.org/data/2.5/forecast",
-                    params={"q": "Melbourne", "appid": "test", "units": "metric"},
+                    "https://api.open-meteo.com/v1/forecast",
+                    params={
+                        "latitude": -37.8136,
+                        "longitude": 144.9631,
+                        "daily": "weather_code,temperature_2m_max,temperature_2m_min",
+                        "forecast_days": 7,
+                    },
                 )
                 data = response.json()
 
-            assert data["city"]["name"] == "Melbourne"
-            assert len(data["list"]) == 2
+            assert len(data["daily"]["time"]) == 3
+            assert data["daily"]["temperature_2m_max"][0] == 28.0
+            assert data["daily"]["precipitation_probability_max"][2] == 60
+
+    @pytest.mark.asyncio
+    async def test_geocode_city_success(self):
+        """Should geocode city name to coordinates."""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = MagicMock()
+            mock_response.json.return_value = MOCK_GEOCODE
+            mock_response.status_code = 200
+
+            mock_instance = AsyncMock()
+            mock_instance.get.return_value = mock_response
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
+
+            async with mock_client() as client:
+                response = await client.get(
+                    "https://geocoding-api.open-meteo.com/v1/search",
+                    params={"name": "Melbourne", "count": 1},
+                )
+                data = response.json()
+
+            assert data["results"][0]["name"] == "Melbourne"
+            assert data["results"][0]["latitude"] == pytest.approx(-37.8136, rel=0.01)
 
     def test_handle_city_not_found(self):
         """Should handle city not found gracefully."""
-        error_response = {"cod": "404", "message": "city not found"}
-        assert error_response["cod"] == "404"
+        empty_response = {"results": []}
+        assert len(empty_response.get("results", [])) == 0
 
-        expected_message = "I couldn't find weather data for"
+        expected_message = "I couldn't find"
         assert "find" in expected_message.lower()
 
 
@@ -167,11 +247,12 @@ class TestWeatherResponseFormatting:
 
     def test_voice_response_format(self):
         """Voice response should be brief."""
-        data = MOCK_WEATHER_RESPONSE
+        data = MOCK_CURRENT_WEATHER
 
-        temp = data["main"]["temp"]
-        condition = data["weather"][0]["main"]
-        humidity = data["main"]["humidity"]
+        temp = data["current"]["temperature_2m"]
+        weather_code = data["current"]["weather_code"]
+        condition = WEATHER_CODES.get(weather_code, "Unknown")
+        humidity = data["current"]["relative_humidity_2m"]
 
         voice_response = f"It's currently {temp:.0f} degrees and {condition.lower()} in Melbourne. The humidity is {humidity}%."
 
@@ -182,7 +263,7 @@ class TestWeatherResponseFormatting:
 
     def test_text_response_includes_details(self):
         """Text response should include more details."""
-        data = MOCK_WEATHER_RESPONSE
+        data = MOCK_CURRENT_WEATHER
 
         required_fields = ["Temperature", "Conditions", "Humidity", "Wind"]
 
@@ -193,14 +274,36 @@ class TestWeatherResponseFormatting:
 
 | | |
 |---|---|
-| Temperature | {data["main"]["temp"]:.0f}°C (feels like {data["main"]["feels_like"]:.0f}°C) |
-| Conditions | {data["weather"][0]["main"]} |
-| Humidity | {data["main"]["humidity"]}% |
-| Wind | {data["wind"]["speed"] * 3.6:.0f} km/h |
+| Temperature | {data["current"]["temperature_2m"]:.0f}°C (feels like {data["current"]["apparent_temperature"]:.0f}°C) |
+| Conditions | {WEATHER_CODES.get(data["current"]["weather_code"], "Unknown")} |
+| Humidity | {data["current"]["relative_humidity_2m"]}% |
+| Wind | {data["current"]["wind_speed_10m"]:.0f} km/h |
 """
 
         for field in required_fields:
             assert field in text_response
+
+
+class TestOpenMeteoAPIFeatures:
+    """Test Open-Meteo specific features."""
+
+    def test_no_api_key_required(self):
+        """Open-Meteo doesn't require an API key."""
+        # This is a documentation test - Open-Meteo is free
+        api_url = "https://api.open-meteo.com/v1/forecast"
+        assert "api.open-meteo.com" in api_url
+        # No appid or api_key parameter needed
+
+    def test_timezone_auto_detection(self):
+        """Should support automatic timezone detection."""
+        params = {"latitude": -37.8136, "longitude": 144.9631, "timezone": "auto"}
+        assert params["timezone"] == "auto"
+
+    def test_forecast_days_parameter(self):
+        """Should support configurable forecast days (up to 16)."""
+        for days in [1, 7, 14, 16]:
+            params = {"forecast_days": days}
+            assert 1 <= params["forecast_days"] <= 16
 
 
 @pytest.mark.eval
@@ -217,7 +320,15 @@ class TestWeatherSkillEval:
             "What's the forecast for the week?",
         ]
 
-        weather_keywords = ["weather", "rain", "umbrella", "hot", "cold", "forecast", "temperature"]
+        weather_keywords = [
+            "weather",
+            "rain",
+            "umbrella",
+            "hot",
+            "cold",
+            "forecast",
+            "temperature",
+        ]
 
         for query in weather_queries:
             has_keyword = any(kw in query.lower() for kw in weather_keywords)

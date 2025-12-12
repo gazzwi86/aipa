@@ -115,7 +115,7 @@ Instructions and guidelines...
 ## Output Format
 
 ### For Voice Responses
-> "I've created a new skill for weather lookups. It uses OpenWeatherMap and supports any city. I've also added tests. Want me to demonstrate it?"
+> "I've created a new skill for weather lookups. It uses Open-Meteo, which is completely free with no API key needed. It supports any city worldwide. I've also added tests. Want me to demonstrate it?"
 
 ### For Text Responses
 ```markdown
@@ -126,24 +126,22 @@ Instructions and guidelines...
 
 ### Capabilities
 - Current weather for any city
-- 5-day forecast
+- 16-day forecast
 - Temperature in Celsius/Fahrenheit
 
 ### Dependencies
-- OpenWeatherMap API key required
+- No API key required (Open-Meteo is free)
 - httpx for HTTP requests
 
 ### Files Created
 - `SKILL.md` - Skill definition
-- `weather_api.py` - API integration
 
 ### Testing
 - Added `test_weather.py`
 - All tests passing
 
 ### Next Steps
-- Set OPENWEATHERMAP_API_KEY
-- Ready to use
+- Ready to use immediately (no configuration needed)
 ```
 
 ## Quality Standards

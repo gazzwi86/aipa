@@ -1,0 +1,10 @@
+# History Directory
+
+This directory stores task and conversation history.
+
+Contents are automatically backed up to S3 and excluded from git.
+
+Subdirectories:
+- tasks/ - Task execution history (JSON)
+- conversations/ - Conversation summaries
+- decisions/ - Important decisions made

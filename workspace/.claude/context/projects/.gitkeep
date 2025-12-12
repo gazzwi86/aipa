@@ -1,0 +1,10 @@
+# Projects Directory
+
+This directory stores per-project context.
+
+Create subdirectories for each project with relevant context:
+- project-name/
+  - context.md - Project background and goals
+  - decisions.md - Key decisions made
+  - people.md - People involved
+  - notes.md - Ongoing notes

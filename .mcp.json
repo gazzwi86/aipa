@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "/Users/gareth/Sites/aipa/.claude/scripts/run-mcp.sh",
+      "args": ["docker", "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ]
+    },
+    "aws-docs": {
+      "type": "stdio",
+      "command": "/Users/gareth/Sites/aipa/.claude/scripts/run-mcp.sh",
+      "args": ["uvx", "awslabs.aws-documentation-mcp-server@latest"]
+    },
+    "aws-knowledge": {
+      "type": "stdio",
+      "command": "/Users/gareth/Sites/aipa/.claude/scripts/run-mcp.sh",
+      "args": ["uvx", "fastmcp", "run", "https://knowledge-mcp.global.api.aws"]
+    },
+    "aws-api": {
+      "type": "stdio",
+      "command": "/Users/gareth/Sites/aipa/.claude/scripts/run-mcp.sh",
+      "args": ["uvx", "awslabs.aws-api-mcp-server@latest"],
+      "env": {
+        "AWS_REGION": "ap-southeast-2"
+      }
+    },
+    "aws-terraform": {
+      "type": "stdio",
+      "command": "/Users/gareth/Sites/aipa/.claude/scripts/run-mcp.sh",
+      "args": ["uvx", "awslabs.terraform-mcp-server@latest"],
+      "env": {
+        "AWS_REGION": "ap-southeast-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    }
+  }
+}

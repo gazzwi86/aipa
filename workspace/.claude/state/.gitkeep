@@ -1,0 +1,7 @@
+# State Directory
+
+Runtime state files (not committed to git):
+- pending-task.json - Task to resume after restart
+- conversation.json - Conversation context for continuity
+- last-healthy.txt - Timestamp of last healthy state
+- restart-history.txt - Log of restarts

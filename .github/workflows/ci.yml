@@ -1,0 +1,230 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.5.0"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run ruff check
+        run: uv run ruff check server/ tests/
+
+      - name: Run ruff format check
+        run: uv run ruff format --check server/ tests/
+
+      - name: Run mypy
+        run: uv run mypy server/
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run bandit security scan
+        run: uv run bandit -r server/ -c pyproject.toml
+
+      - name: Run pip-audit for vulnerabilities
+        run: uv run pip-audit
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run unit tests with coverage
+        run: |
+          uv run pytest tests/unit \
+            --cov=server \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  test-e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Install Playwright browsers
+        run: uv run playwright install --with-deps chromium
+
+      - name: Start test server
+        run: |
+          # Set test environment variables
+          export ENVIRONMENT=development
+          export AGENT_NAME=TestAgent
+          export AUTH_PASSWORD_HASH=$(uv run python -c "import bcrypt; print(bcrypt.hashpw(b'test123', bcrypt.gensalt()).decode())")
+          export LIVEKIT_URL=""
+
+          # Start server in background
+          uv run uvicorn server.main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "Server is ready"
+              break
+            fi
+            echo "Waiting for server... ($i)"
+            sleep 1
+          done
+
+      - name: Run E2E tests
+        run: |
+          export TEST_BASE_URL=http://localhost:8000
+          export TEST_PASSWORD=test123
+          uv run pytest tests/e2e -v --ignore=tests/e2e/test_voice_ui.py
+        continue-on-error: true  # Voice UI tests may fail without LiveKit
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+
+  terraform-validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: aipa:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Summary job that all other jobs must pass
+  ci-success:
+    name: CI Success
+    needs: [lint, security, test-unit, terraform-validate, docker-build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ] || \
+             [ "${{ needs.test-unit.result }}" != "success" ] || \
+             [ "${{ needs.terraform-validate.result }}" != "success" ] || \
+             [ "${{ needs.docker-build.result }}" != "success" ]; then
+            echo "One or more required jobs failed"
+            exit 1
+          fi
+          echo "All CI checks passed!"

@@ -1,0 +1,28 @@
+{
+  "name": "notion",
+  "description": "Notion MCP server for knowledge base access",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@notionhq/notion-mcp-server"],
+  "env": {
+    "NOTION_API_KEY": "${NOTION_API_KEY}"
+  },
+  "enabled": true,
+  "databases": {
+    "notes": {
+      "description": "Notes, research, and ideas",
+      "categories": ["Note", "Research", "Thought/Idea"]
+    },
+    "tasks": {
+      "description": "Action items with due dates",
+      "properties": ["Title", "Status", "Due Date", "Project"]
+    },
+    "projects": {
+      "description": "Work initiatives",
+      "relations": ["Clients", "Tasks", "Notes"]
+    },
+    "clients": {
+      "description": "Client information"
+    }
+  }
+}

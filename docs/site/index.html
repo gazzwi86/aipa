@@ -1,0 +1,334 @@
+---
+layout: default
+title: Home
+---
+
+<div class="hero">
+  <div class="hero-content">
+    <h1>AIPA</h1>
+    <p class="tagline">Your AI Personal Assistant, Self-Hosted</p>
+    <p class="description">
+      A voice-first AI assistant powered by Claude Code. Runs on your AWS account,
+      costs ~$5/month, and improves itself over time.
+    </p>
+    <div class="cta-buttons">
+      <a href="{{ '/docs/getting-started' | relative_url }}" class="btn btn-primary">Get Started</a>
+      <a href="https://github.com/gazzwi86/aipa" class="btn btn-secondary">View on GitHub</a>
+    </div>
+  </div>
+</div>
+
+<section class="features">
+  <h2>Features</h2>
+  <div class="feature-grid">
+    <div class="feature">
+      <div class="feature-icon">🎙️</div>
+      <h3>Voice First</h3>
+      <p>Natural conversations through your browser. Built on LiveKit and VoiceMode MCP for real-time voice interaction.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">💰</div>
+      <h3>Cost Optimized</h3>
+      <p>On-demand compute with ARM64 Spot instances. Only runs when you need it. ~$4-9/month vs ~$25+ always-on.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔐</div>
+      <h3>Self-Hosted</h3>
+      <p>Runs on your AWS account. Your data stays yours. No third-party servers except Claude API.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🧠</div>
+      <h3>Self-Improving</h3>
+      <p>Creates new skills and tools autonomously. Learns your preferences. Gets better over time.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔌</div>
+      <h3>MCP Integrations</h3>
+      <p>Connect to Notion, GitHub, and more via MCP servers. Extend capabilities without code changes.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">👤</div>
+      <h3>Human in Loop</h3>
+      <p>Autonomous operation with approval gates. Sensitive actions require your explicit consent.</p>
+    </div>
+  </div>
+</section>
+
+<section class="architecture">
+  <h2>How It Works</h2>
+  <div class="arch-diagram">
+    <pre>
+┌─────────────────┐        ┌─────────────────┐        ┌─────────────────┐
+│  Your Browser   │        │  LiveKit Cloud  │        │  Claude API     │
+│  (Voice + UI)   │◀──────▶│  (Free Tier)    │        │  (Pro/Max sub)  │
+└────────┬────────┘        └─────────────────┘        └────────┬────────┘
+         │                                                      │
+         │ HTTPS                                                │
+         ▼                                                      ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                       AWS (your account)                               │
+│   ┌───────────────────────────────────────────────────────────────┐   │
+│   │  API Gateway → Lambda (wake) → ECS Fargate (AIPA Container)   │   │
+│   │                                     ↓                          │   │
+│   │              EFS (workspace) ← → S3 (files) ← → DynamoDB       │   │
+│   └───────────────────────────────────────────────────────────────┘   │
+└───────────────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+  <p class="arch-note">
+    AIPA starts cold and wakes in ~45 seconds when you access it.
+    Auto-shuts down after 30 minutes of idle time.
+  </p>
+</section>
+
+<section class="quickstart">
+  <h2>Quick Start</h2>
+  <div class="code-block">
+    <pre><code># Clone the repository
+git clone https://github.com/gazzwi86/aipa.git
+cd aipa
+
+# Configure environment
+cp .env.example .env
+claude setup-token  # Get OAuth token for Claude
+
+# Run locally
+docker compose -f docker-compose.dev.yml up --build
+
+# Open http://localhost:8000</code></pre>
+  </div>
+  <p>
+    <a href="{{ '/docs/getting-started' | relative_url }}">Full setup guide →</a>
+  </p>
+</section>
+
+<section class="cost">
+  <h2>Monthly Cost</h2>
+  <div class="cost-table">
+    <table>
+      <tr>
+        <th>Service</th>
+        <th>Cost</th>
+      </tr>
+      <tr>
+        <td>ECS Fargate (Spot, 4 hrs/day)</td>
+        <td>$1-3</td>
+      </tr>
+      <tr>
+        <td>API Gateway</td>
+        <td>$1-2</td>
+      </tr>
+      <tr>
+        <td>NAT Gateway</td>
+        <td>$1-2</td>
+      </tr>
+      <tr>
+        <td>EFS, S3, DynamoDB, Lambda</td>
+        <td>~$1</td>
+      </tr>
+      <tr class="total">
+        <td><strong>Total</strong></td>
+        <td><strong>~$4-9/month</strong></td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<section class="open-source">
+  <h2>Open Source</h2>
+  <p>
+    AIPA is MIT licensed. Fork it, customize it, make it your own.
+  </p>
+  <div class="os-features">
+    <div class="os-feature">
+      <h4>Add Skills</h4>
+      <p>Create custom skills in <code>.claude/skills/</code> to teach your assistant new capabilities.</p>
+    </div>
+    <div class="os-feature">
+      <h4>Add Agents</h4>
+      <p>Define specialized agents in <code>.claude/agents/</code> for different types of tasks.</p>
+    </div>
+    <div class="os-feature">
+      <h4>Connect Tools</h4>
+      <p>Add MCP servers to integrate with your favorite services and APIs.</p>
+    </div>
+  </div>
+  <p>
+    <a href="https://github.com/gazzwi86/aipa/blob/main/CONTRIBUTING.md">Contributing guide →</a>
+  </p>
+</section>
+
+<style>
+.hero {
+  text-align: center;
+  padding: 4rem 1rem;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: white;
+  margin: -30px -15px 2rem;
+}
+
+.hero h1 {
+  font-size: 4rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(90deg, #00d4ff, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.tagline {
+  font-size: 1.5rem;
+  opacity: 0.9;
+  margin-bottom: 1rem;
+}
+
+.description {
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  opacity: 0.8;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: #7c3aed;
+  color: white;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 2px solid white;
+  color: white;
+}
+
+section {
+  padding: 3rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+section h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.feature {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.feature h3 {
+  margin-bottom: 0.5rem;
+}
+
+.arch-diagram {
+  background: #1a1a2e;
+  color: #00d4ff;
+  padding: 2rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.arch-diagram pre {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.arch-note {
+  text-align: center;
+  margin-top: 1rem;
+  font-style: italic;
+  color: #666;
+}
+
+.code-block {
+  background: #1a1a2e;
+  color: #e2e8f0;
+  padding: 1.5rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.code-block code {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 0.9rem;
+}
+
+.cost-table {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.cost-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cost-table th, .cost-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.cost-table .total {
+  background: #f9f9f9;
+}
+
+.os-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.os-feature {
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.os-feature h4 {
+  margin-bottom: 0.5rem;
+}
+
+.os-feature code {
+  background: #e2e8f0;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 2.5rem;
+  }
+
+  .cta-buttons {
+    flex-direction: column;
+  }
+
+  .arch-diagram pre {
+    font-size: 0.6rem;
+  }
+}
+</style>

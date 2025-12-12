@@ -1,0 +1,124 @@
+---
+layout: default
+---
+
+<div class="doc-container">
+  <aside class="doc-sidebar">
+    <nav class="doc-nav">
+      <h3>Documentation</h3>
+      <ul>
+        <li><a href="{{ '/docs/getting-started' | relative_url }}">Getting Started</a></li>
+        <li><a href="{{ '/docs/architecture' | relative_url }}">Architecture</a></li>
+        <li><a href="{{ '/docs/deployment' | relative_url }}">AWS Deployment</a></li>
+        <li><a href="{{ '/docs/customization' | relative_url }}">Customization</a></li>
+        <li><a href="{{ '/docs/skills' | relative_url }}">Creating Skills</a></li>
+        <li><a href="{{ '/docs/agents' | relative_url }}">Creating Agents</a></li>
+        <li><a href="{{ '/docs/mcp-servers' | relative_url }}">MCP Servers</a></li>
+        <li><a href="{{ '/docs/troubleshooting' | relative_url }}">Troubleshooting</a></li>
+      </ul>
+    </nav>
+  </aside>
+  <main class="doc-content">
+    <h1>{{ page.title }}</h1>
+    {{ content }}
+  </main>
+</div>
+
+<style>
+.doc-container {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.doc-sidebar {
+  position: sticky;
+  top: 2rem;
+  height: fit-content;
+}
+
+.doc-nav h3 {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.doc-nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.doc-nav li {
+  margin-bottom: 0.5rem;
+}
+
+.doc-nav a {
+  color: #333;
+  text-decoration: none;
+  padding: 0.5rem;
+  display: block;
+  border-radius: 4px;
+}
+
+.doc-nav a:hover {
+  background: #f5f5f5;
+}
+
+.doc-content {
+  min-width: 0;
+}
+
+.doc-content h1 {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.doc-content h2 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.doc-content pre {
+  background: #1a1a2e;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.doc-content code {
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.doc-content th, .doc-content td {
+  padding: 0.75rem;
+  text-align: left;
+  border: 1px solid #eee;
+}
+
+.doc-content th {
+  background: #f9f9f9;
+}
+
+@media (max-width: 768px) {
+  .doc-container {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-sidebar {
+    position: static;
+    margin-bottom: 2rem;
+  }
+}
+</style>

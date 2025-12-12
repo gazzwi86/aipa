@@ -1,0 +1,98 @@
+# AIPA - Development with Local Voice Services
+# Includes Whisper (STT) and Kokoro (TTS) for voice - no OpenAI API needed
+# Run: docker compose -f docker-compose.dev.yml up --build
+
+services:
+  aipa:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount workspace for persistence (agent works here)
+      - ./workspace:/workspace
+      # Mount source for development hot-reload
+      - ./server:/app/server:ro
+      # Claude config directory (for MCP servers, settings)
+      # Note: Not read-only so Claude Code can write session state
+      - ./.claude:/home/aipa/.claude
+    environment:
+      # Authentication
+      - AUTH_PASSWORD_HASH=${AUTH_PASSWORD_HASH}
+      - SESSION_SECRET=${SESSION_SECRET:-dev-secret-change-in-prod}
+      # LiveKit for VoiceMode
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      # Local voice services (faster-whisper-server + Kokoro)
+      - STT_BASE_URL=http://whisper:8000/v1
+      - TTS_BASE_URL=http://kokoro:8880/v1
+      - TTS_VOICE=af_heart
+      # Claude Code Authentication (long-lived token)
+      # Used by both Claude Code CLI and voice agent LLM
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      # MCP server API keys
+      - NOTION_API_KEY=${NOTION_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      # Application
+      - AGENT_NAME=${AGENT_NAME:-Ultra}
+      - ENVIRONMENT=development
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - whisper
+      - kokoro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Local Speech-to-Text (faster-whisper-server - OpenAI API compatible)
+  # See: https://github.com/fedirz/faster-whisper-server
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    environment:
+      # Model options (smallest to largest, faster to more accurate):
+      # - Systran/faster-whisper-tiny.en (fastest, less accurate)
+      # - Systran/faster-whisper-base.en (balanced)
+      # - Systran/faster-whisper-small.en (more accurate, slower)
+      - WHISPER__MODEL=${WHISPER_MODEL:-Systran/faster-whisper-base.en}
+      # Preload model on startup to avoid cold-start latency
+      - WHISPER__MODEL_PRELOAD=true
+      # Inference settings for faster transcription
+      - WHISPER__INFERENCE__BEAM_SIZE=1
+      - WHISPER__INFERENCE__BEST_OF=1
+      - WHISPER__INFERENCE__PATIENCE=1
+      # Keep model in memory for 10 minutes (default 300s)
+      - WHISPER__TTL=600
+    volumes:
+      - whisper-cache:/root/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # Local Text-to-Speech (Kokoro)
+  # See: https://github.com/remsky/Kokoro-FastAPI
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.2
+    environment:
+      - KOKORO_DEFAULT_VOICE=af_heart
+      # Enable streaming for lower time-to-first-audio
+      - KOKORO_STREAM=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  whisper-cache:

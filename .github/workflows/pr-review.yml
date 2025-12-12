@@ -1,0 +1,166 @@
+name: PR Code Review
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.5.0"
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff analysis
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Get changed Python files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.py
+
+      - name: Run ruff on changed files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+          uv run ruff check ${{ steps.changed-files.outputs.all_changed_files }} --output-format=github
+
+      - name: Run mypy on changed files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          uv run mypy ${{ steps.changed-files.outputs.all_changed_files }} || true
+
+  security-scan:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run bandit security scan
+        run: |
+          uv run bandit -r server/ -c pyproject.toml -f sarif -o bandit-results.sarif || true
+
+      - name: Upload bandit results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit
+        continue-on-error: true
+
+      - name: Run pip-audit
+        run: |
+          uv run pip-audit --format=json --output=pip-audit.json || true
+
+      - name: Comment on PR with security findings
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let comment = '## Security Scan Results\n\n';
+
+            // Check pip-audit results
+            try {
+              const auditResults = JSON.parse(fs.readFileSync('pip-audit.json', 'utf8'));
+              if (auditResults.dependencies && auditResults.dependencies.length > 0) {
+                const vulns = auditResults.dependencies.filter(d => d.vulns && d.vulns.length > 0);
+                if (vulns.length > 0) {
+                  comment += '### Dependency Vulnerabilities\n\n';
+                  comment += '| Package | Version | Vulnerability |\n';
+                  comment += '|---------|---------|---------------|\n';
+                  vulns.forEach(dep => {
+                    dep.vulns.forEach(v => {
+                      comment += `| ${dep.name} | ${dep.version} | ${v.id} |\n`;
+                    });
+                  });
+                  comment += '\n';
+                } else {
+                  comment += '**No dependency vulnerabilities found.**\n\n';
+                }
+              }
+            } catch (e) {
+              comment += '_Could not parse pip-audit results._\n\n';
+            }
+
+            comment += '\n---\n_Security scan completed_';
+
+            // Post comment
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
+  terraform-changes:
+    name: Terraform Changes Review
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'terraform/')
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Post Terraform validation result
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const success = '${{ job.status }}' === 'success';
+            const emoji = success ? '' : '';
+            const status = success ? 'passed' : 'needs attention';
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Terraform Validation ${emoji}\n\nTerraform validation **${status}**.\n\n${success ? 'Infrastructure changes look good!' : 'Please review the Terraform validation errors above.'}`
+            });

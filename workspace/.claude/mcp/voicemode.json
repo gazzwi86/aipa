@@ -1,0 +1,21 @@
+{
+  "name": "voicemode",
+  "description": "VoiceMode MCP server for voice conversations",
+  "transport": "stdio",
+  "command": "uvx",
+  "args": ["voice-mode[livekit]"],
+  "env": {
+    "STT_BASE_URL": "${STT_BASE_URL:-http://whisper:9000/v1}",
+    "TTS_BASE_URL": "${TTS_BASE_URL:-http://kokoro:8880/v1}",
+    "TTS_VOICE": "${TTS_VOICE:-af_heart}",
+    "LIVEKIT_URL": "${LIVEKIT_URL}",
+    "LIVEKIT_API_KEY": "${LIVEKIT_API_KEY}",
+    "LIVEKIT_API_SECRET": "${LIVEKIT_API_SECRET}"
+  },
+  "enabled": true,
+  "settings": {
+    "voice": "af_heart",
+    "silence_threshold": 0.5,
+    "silence_duration": 1.0
+  }
+}

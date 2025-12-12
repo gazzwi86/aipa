@@ -1,0 +1,39 @@
+# =============================================================================
+# AIPA Terraform Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and update with your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# See docs/DEPLOYMENT.md for complete deployment instructions.
+
+# AWS Configuration
+aws_profile  = "your-aws-profile"  # AWS CLI profile to use
+aws_region   = "ap-southeast-2"
+environment  = "production"
+project_name = "aipa"
+agent_name   = "Ultra"
+
+# ECS Configuration
+# Note: Voice services require more memory. Recommended: 1024 CPU, 2048 memory
+ecs_cpu          = 1024  # 1 vCPU
+ecs_memory       = 2048  # 2 GB (needed for voice + STT/TTS if using OpenAI)
+use_fargate_spot = true  # ~70% cheaper, but can be interrupted
+
+# GitHub repository (for self-update capability)
+github_repo = "gazzwi86/aipa"
+
+# Domain (optional - leave empty to use API Gateway URL)
+# domain_name = "api.yourdomain.com"
+
+# =============================================================================
+# Required Secrets (populate in AWS Secrets Manager after terraform apply):
+# =============================================================================
+# - CLAUDE_CODE_OAUTH_TOKEN: From 'claude setup-token'
+# - AUTH_PASSWORD_HASH: Bcrypt hash for login password
+# - SESSION_SECRET: Random string for session signing
+# - LIVEKIT_URL: LiveKit Cloud URL (wss://your-project.livekit.cloud)
+# - LIVEKIT_API_KEY: LiveKit API key
+# - LIVEKIT_API_SECRET: LiveKit API secret
+# - NOTION_API_KEY: (optional) Notion integration
+# - GITHUB_TOKEN: (optional) GitHub integration
+# - OPENAI_API_KEY: (optional) For cloud STT/TTS if not using local services

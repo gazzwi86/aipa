@@ -1,0 +1,914 @@
+{% extends "base.html" %}
+
+{% block title %}{{ agent_name }}{% endblock %}
+
+{% block extra_styles %}
+/* Layout - Three Panel */
+.app-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Sessions Sidebar */
+.sessions-sidebar {
+    width: 260px;
+    background: rgba(0,0,0,0.2);
+    border-right: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+.sessions-header {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.sessions-header h2 { font-size: 0.9rem; color: #8b8b9e; }
+.new-session-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: transparent;
+    color: #8b8b9e;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.new-session-btn:hover { background: rgba(255,255,255,0.1); color: #e8e8e8; }
+.sessions-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+.session-item {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    margin-bottom: 0.25rem;
+    transition: background 0.2s;
+}
+.session-item:hover { background: rgba(255,255,255,0.05); }
+.session-item.active { background: rgba(102, 126, 234, 0.2); }
+.session-item .session-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.session-item .session-preview {
+    font-size: 0.75rem;
+    color: #6b6b7e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.25rem;
+}
+.session-item .session-time {
+    font-size: 0.65rem;
+    color: #6b6b7e;
+    margin-top: 0.25rem;
+}
+.storage-mode {
+    padding: 0.5rem 1rem;
+    font-size: 0.7rem;
+    color: #6b6b7e;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+.storage-mode.in-memory { color: #fbbf24; }
+
+/* Main Chat Area */
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    -webkit-overflow-scrolling: touch;
+}
+.message {
+    max-width: 85%;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    word-break: break-word;
+    animation: fadeIn 0.2s ease-out;
+}
+.message.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-bottom-right-radius: 0.25rem;
+}
+.message.assistant {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.1);
+    border-bottom-left-radius: 0.25rem;
+}
+.message.system {
+    align-self: center;
+    background: rgba(255,255,255,0.05);
+    color: #8b8b9e;
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+}
+.message.error {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+}
+.message.voice { opacity: 0.8; font-style: italic; }
+.message .source-label {
+    display: block;
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Input Area */
+.input-area {
+    padding: 0.75rem 1rem 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+    background: rgba(0,0,0,0.2);
+}
+.text-input {
+    flex: 1;
+    border-radius: 1.5rem;
+    resize: none;
+    max-height: 120px;
+    line-height: 1.4;
+    min-height: 48px;
+}
+.voice-btn, .send-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 50%;
+    border: none;
+    color: white;
+    font-size: 1.25rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.voice-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.voice-btn:hover { transform: scale(1.05); }
+.voice-btn:active { transform: scale(0.95); }
+.voice-btn.listening {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    animation: pulse 1.5s infinite;
+}
+.voice-btn.speaking { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+.voice-btn.processing {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    animation: processingPulse 2s infinite;
+}
+.voice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.send-btn { background: #667eea; }
+.send-btn:hover { background: #5a67d8; }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+}
+@keyframes processingPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+
+/* Status Bar */
+.status-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    color: #6b6b7e;
+    flex-shrink: 0;
+}
+.status-dot {
+    margin-right: 0.5rem;
+}
+.status-dot.processing { background: #f59e0b; animation: blink 0.5s infinite; }
+.status-dot.listening { background: #ef4444; animation: pulse-small 1s infinite; }
+.status-dot.speaking { background: #10b981; animation: pulse-small 1s infinite; }
+@keyframes pulse-small {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+}
+
+/* Processing Indicator */
+.processing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: rgba(245, 158, 11, 0.1);
+    border-radius: 1rem;
+    border-bottom-left-radius: 0.25rem;
+    animation: fadeIn 0.2s ease-out;
+}
+.processing-indicator .brain-icon { font-size: 1.2rem; animation: think 1s infinite; }
+@keyframes think {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+.processing-indicator .processing-text { color: #fbbf24; font-size: 0.9rem; }
+.processing-dots { display: inline-flex; gap: 2px; }
+.processing-dots span {
+    width: 4px;
+    height: 4px;
+    background: #fbbf24;
+    border-radius: 50%;
+    animation: processingDot 1.4s infinite;
+}
+.processing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.processing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes processingDot {
+    0%, 60%, 100% { opacity: 0.3; }
+    30% { opacity: 1; }
+}
+
+/* Artifacts Panel */
+.artifacts-panel {
+    width: 220px;
+    background: rgba(0,0,0,0.2);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+.artifacts-header {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.artifacts-header h2 { font-size: 0.9rem; color: #8b8b9e; }
+.artifacts-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+.artifact-item {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.artifact-item:hover { background: rgba(255,255,255,0.05); }
+.artifact-item .artifact-icon { font-size: 1rem; }
+.artifact-item .artifact-name {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.no-artifacts {
+    padding: 1rem;
+    text-align: center;
+    color: #6b6b7e;
+    font-size: 0.8rem;
+}
+
+/* Mobile Tabs */
+.mobile-tabs {
+    display: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.mobile-tab {
+    flex: 1;
+    padding: 0.75rem;
+    background: transparent;
+    border: none;
+    color: #8b8b9e;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+.mobile-tab.active {
+    color: #e8e8e8;
+    border-bottom-color: #667eea;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .sessions-sidebar, .artifacts-panel { display: none; }
+    .sessions-sidebar.mobile-visible, .artifacts-panel.mobile-visible {
+        display: flex;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        z-index: 10;
+    }
+    .sessions-sidebar.mobile-visible { left: 0; }
+    .artifacts-panel.mobile-visible { right: 0; }
+    .mobile-tabs { display: flex; }
+    .chat-main.hidden { display: none; }
+}
+@media (max-width: 480px) {
+    .chat-container { padding: 0.75rem; gap: 0.5rem; }
+    .message { max-width: 90%; padding: 0.6rem 0.85rem; font-size: 0.9rem; }
+    .input-area { padding: 0.5rem 0.75rem 0.75rem; gap: 0.5rem; }
+    .voice-btn, .send-btn { width: 44px; height: 44px; min-width: 44px; font-size: 1.1rem; }
+}
+{% endblock %}
+
+{% block body %}
+<div class="header">
+    <h1>{{ agent_name }}</h1>
+    <div class="header-links">
+        <a href="/files-page">Files</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="error-banner" id="errorBanner">
+    <span class="error-icon">Warning</span>
+    <span class="error-text" id="errorText">An error occurred</span>
+    <button class="error-dismiss" id="errorDismiss">Dismiss</button>
+</div>
+
+<!-- Mobile Tabs -->
+<div class="mobile-tabs">
+    <button class="mobile-tab" data-panel="sessions">Sessions</button>
+    <button class="mobile-tab active" data-panel="chat">Chat</button>
+    <button class="mobile-tab" data-panel="artifacts">Files</button>
+</div>
+
+<div class="app-layout">
+    <!-- Sessions Sidebar -->
+    <div class="sessions-sidebar" id="sessionsSidebar">
+        <div class="sessions-header">
+            <h2>Sessions</h2>
+            <button class="new-session-btn" id="newSessionBtn" title="New Session">+</button>
+        </div>
+        <div class="sessions-list" id="sessionsList">
+            <!-- Sessions populated by JS -->
+        </div>
+        <div class="storage-mode" id="storageMode">Loading...</div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-main" id="chatMain">
+        <div class="status-bar">
+            <span class="status-dot connecting" id="statusDot"></span>
+            <span id="statusText">Connecting...</span>
+        </div>
+        <div class="chat-container" id="chat">
+            <div class="message system">Welcome! Click the microphone to start talking or type a message.</div>
+        </div>
+        <div class="input-area">
+            <textarea class="text-input input" id="textInput" placeholder="Type a message..." rows="1"></textarea>
+            <button class="voice-btn" id="voiceBtn" disabled title="Click to talk">Mic</button>
+            <button class="send-btn" id="sendBtn" title="Send message">Send</button>
+        </div>
+    </div>
+
+    <!-- Artifacts Panel -->
+    <div class="artifacts-panel" id="artifactsPanel">
+        <div class="artifacts-header">
+            <h2>Session Files</h2>
+        </div>
+        <div class="artifacts-list" id="artifactsList">
+            <div class="no-artifacts">No files in this session</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script>
+    // Session Management State
+    let currentSessionId = null;
+    let sessions = [];
+
+    // Voice State
+    let room = null;
+    let isConnected = false;
+    let isListening = false;
+    let isSpeaking = false;
+    let isProcessing = false;
+    let audioContext = null;
+    let localAudioTrack = null;
+    let analyser = null;
+    let silenceCheckInterval = null;
+    const SILENCE_THRESHOLD = 0.01;
+    const SILENCE_DURATION = 5000;
+
+    // Elements
+    const chat = document.getElementById('chat');
+    const textInput = document.getElementById('textInput');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const errorBanner = document.getElementById('errorBanner');
+    const errorText = document.getElementById('errorText');
+    const errorDismiss = document.getElementById('errorDismiss');
+    const sessionsList = document.getElementById('sessionsList');
+    const newSessionBtn = document.getElementById('newSessionBtn');
+    const storageMode = document.getElementById('storageMode');
+    const artifactsList = document.getElementById('artifactsList');
+
+    // ==================== Session Management ====================
+
+    async function loadSessions() {
+        try {
+            const resp = await fetch('/api/sessions');
+            if (resp.ok) {
+                const data = await resp.json();
+                sessions = data.sessions;
+                renderSessions();
+
+                // Auto-select first session or create new
+                if (sessions.length > 0 && !currentSessionId) {
+                    selectSession(sessions[0].id);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load sessions:', e);
+        }
+    }
+
+    async function createSession() {
+        try {
+            const resp = await fetch('/api/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                currentSessionId = data.session.id;
+                await loadSessions();
+                clearChat();
+                addMessage('New session started', 'system');
+            }
+        } catch (e) {
+            console.error('Failed to create session:', e);
+        }
+    }
+
+    async function selectSession(sessionId) {
+        currentSessionId = sessionId;
+        renderSessions();
+
+        try {
+            const resp = await fetch(`/api/sessions/${sessionId}`);
+            if (resp.ok) {
+                const session = await resp.json();
+                clearChat();
+
+                // Render messages
+                for (const msg of session.messages) {
+                    addMessage(msg.content, msg.role, msg.source);
+                }
+
+                // Update artifacts
+                renderArtifacts(session.artifacts);
+
+                if (session.messages.length === 0) {
+                    addMessage('Session loaded. Start chatting!', 'system');
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load session:', e);
+        }
+    }
+
+    function renderSessions() {
+        sessionsList.innerHTML = sessions.map(s => `
+            <div class="session-item ${s.id === currentSessionId ? 'active' : ''}"
+                 onclick="selectSession('${s.id}')">
+                <div class="session-name">${escapeHtml(s.name)}</div>
+                <div class="session-preview">${escapeHtml(s.preview || 'No messages')}</div>
+                <div class="session-time">${formatTime(s.updated)}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderArtifacts(artifacts) {
+        if (!artifacts || artifacts.length === 0) {
+            artifactsList.innerHTML = '<div class="no-artifacts">No files in this session</div>';
+            return;
+        }
+        artifactsList.innerHTML = artifacts.map(a => `
+            <a class="artifact-item" href="/files/${a.path}" target="_blank">
+                <span class="artifact-icon">File</span>
+                <span class="artifact-name">${escapeHtml(a.path.split('/').pop())}</span>
+            </a>
+        `).join('');
+    }
+
+    async function checkStorageMode() {
+        try {
+            if (currentSessionId) {
+                const resp = await fetch(`/api/sessions/${currentSessionId}/storage-mode`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    storageMode.textContent = data.persistent ? 'DynamoDB' : 'In-memory (not saved)';
+                    storageMode.className = 'storage-mode' + (data.persistent ? '' : ' in-memory');
+                }
+            }
+        } catch (e) {
+            storageMode.textContent = 'Unknown';
+        }
+    }
+
+    // ==================== Chat Functions ====================
+
+    function clearChat() {
+        chat.innerHTML = '';
+    }
+
+    function addMessage(text, type, source = null) {
+        removeProcessing();
+        const msg = document.createElement('div');
+        msg.className = 'message ' + type;
+        if (source === 'voice') msg.classList.add('voice');
+
+        if (source) {
+            const label = document.createElement('span');
+            label.className = 'source-label';
+            label.textContent = source === 'voice' ? (type === 'user' ? 'You said:' : 'Ultra says:') : '';
+            if (source === 'voice') msg.appendChild(label);
+        }
+
+        msg.appendChild(document.createTextNode(text));
+        chat.appendChild(msg);
+        chat.scrollTop = chat.scrollHeight;
+        return msg;
+    }
+
+    function addProcessing(message = 'Thinking') {
+        removeProcessing();
+        isProcessing = true;
+        updateButtonState();
+        setStatus('processing', message + '...');
+
+        const proc = document.createElement('div');
+        proc.className = 'processing-indicator';
+        proc.id = 'processing';
+        proc.innerHTML = `
+            <span class="brain-icon">Brain</span>
+            <span class="processing-text">${message}<span class="processing-dots"><span></span><span></span><span></span></span></span>
+        `;
+        chat.appendChild(proc);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    function removeProcessing() {
+        const proc = document.getElementById('processing');
+        if (proc) proc.remove();
+        if (isProcessing) {
+            isProcessing = false;
+            updateButtonState();
+            if (isConnected) setStatus('connected', 'Connected');
+        }
+    }
+
+    // ==================== Error Handling ====================
+
+    function showError(message, autoDismiss = true) {
+        errorText.textContent = message;
+        errorBanner.classList.add('visible');
+        playErrorBeep();
+        if (autoDismiss) setTimeout(hideError, 10000);
+    }
+
+    function hideError() {
+        errorBanner.classList.remove('visible');
+    }
+
+    errorDismiss.addEventListener('click', hideError);
+
+    // ==================== Audio ====================
+
+    function getAudioContext() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') audioContext.resume();
+        return audioContext;
+    }
+
+    function playBeep(freq, duration, type = 'sine') {
+        try {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.value = 0.3;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration/1000);
+            osc.stop(ctx.currentTime + duration/1000);
+        } catch(e) { console.log('Audio error:', e); }
+    }
+
+    function playStartBeep() { playBeep(440, 100); setTimeout(() => playBeep(660, 100), 120); }
+    function playStopBeep() { playBeep(660, 100); setTimeout(() => playBeep(440, 100), 120); }
+    function playErrorBeep() { playBeep(220, 200, 'sawtooth'); }
+
+    // ==================== Status ====================
+
+    function setStatus(status, text) {
+        statusDot.className = 'status-dot ' + status;
+        statusText.textContent = text;
+    }
+
+    function updateButtonState() {
+        voiceBtn.classList.remove('listening', 'speaking', 'processing');
+        if (isListening) voiceBtn.classList.add('listening');
+        else if (isSpeaking) voiceBtn.classList.add('speaking');
+        else if (isProcessing) voiceBtn.classList.add('processing');
+    }
+
+    // ==================== LiveKit Connection ====================
+
+    async function connect() {
+        setStatus('connecting', 'Connecting...');
+        try {
+            const resp = await fetch('/api/voice/token');
+            if (!resp.ok) throw new Error((await resp.json()).detail || 'Failed to get token');
+            const { token, url } = await resp.json();
+
+            room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+
+            room.on(LivekitClient.RoomEvent.Connected, () => {
+                isConnected = true;
+                setStatus('connected', 'Connected');
+                voiceBtn.disabled = false;
+                addMessage('Voice connected. Ready to talk!', 'system');
+            });
+
+            room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
+                isConnected = false;
+                isProcessing = false;
+                isSpeaking = false;
+                setStatus('error', 'Disconnected');
+                voiceBtn.disabled = true;
+                updateButtonState();
+                if (reason) showError('Disconnected: ' + reason);
+            });
+
+            room.on(LivekitClient.RoomEvent.Reconnecting, () => setStatus('connecting', 'Reconnecting...'));
+            room.on(LivekitClient.RoomEvent.Reconnected, () => {
+                setStatus('connected', 'Reconnected');
+                addMessage('Connection restored', 'system');
+            });
+
+            room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+                if (track.kind === 'audio') {
+                    const audio = track.attach();
+                    audio.volume = 1.0;
+                    document.body.appendChild(audio);
+                    audio.onplay = () => { isSpeaking = true; updateButtonState(); setStatus('speaking', 'Speaking...'); };
+                    audio.onended = audio.onpause = () => {
+                        isSpeaking = false;
+                        updateButtonState();
+                        if (isConnected && !isListening && !isProcessing) setStatus('connected', 'Connected');
+                    };
+                }
+            });
+
+            room.on(LivekitClient.RoomEvent.DataReceived, (data) => {
+                try {
+                    const msg = JSON.parse(new TextDecoder().decode(data));
+                    if (msg.type === 'transcript' && (msg.role === 'user' || msg.is_final)) {
+                        addMessage(msg.text, 'user', 'voice');
+                        addProcessing('Thinking');
+                    } else if (msg.type === 'response') {
+                        removeProcessing();
+                        addMessage(msg.text, 'assistant', 'voice');
+                    } else if (msg.type === 'agent_state') {
+                        if (msg.state === 'thinking') addProcessing('Thinking');
+                        else if (msg.state === 'speaking') { removeProcessing(); setStatus('speaking', 'Speaking...'); }
+                        else if (msg.state === 'listening') { removeProcessing(); setStatus('listening', 'Listening...'); }
+                        else if (msg.state === 'idle') { removeProcessing(); setStatus('connected', 'Connected'); }
+                    } else if (msg.type === 'error') {
+                        showError(msg.message || msg.error);
+                        addMessage(msg.message || msg.error, 'error');
+                    }
+                } catch(e) { console.log('Data parse error:', e); }
+            });
+
+            await room.connect(url, token);
+        } catch (error) {
+            console.error('Connection error:', error);
+            setStatus('error', 'Connection failed');
+            showError('Connection failed: ' + error.message);
+            setTimeout(connect, 5000);
+        }
+    }
+
+    // ==================== Voice Recording ====================
+
+    async function startListening() {
+        if (isListening || !isConnected) return;
+        try {
+            localAudioTrack = await LivekitClient.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
+            await room.localParticipant.publishTrack(localAudioTrack);
+
+            const stream = localAudioTrack.mediaStream;
+            if (stream) {
+                const audioCtx = getAudioContext();
+                const source = audioCtx.createMediaStreamSource(stream);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                startSilenceDetection();
+            }
+
+            isListening = true;
+            voiceBtn.classList.add('listening');
+            playStartBeep();
+            setStatus('connected', 'Listening...');
+        } catch (error) {
+            console.error('Mic error:', error);
+            addMessage('Could not access microphone', 'error');
+            playErrorBeep();
+        }
+    }
+
+    function startSilenceDetection() {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let lastSoundTime = Date.now();
+
+        silenceCheckInterval = setInterval(() => {
+            if (!analyser || !isListening) return;
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length / 255;
+
+            if (average > SILENCE_THRESHOLD) {
+                lastSoundTime = Date.now();
+                setStatus('connected', 'Listening...');
+            } else {
+                const silentFor = Date.now() - lastSoundTime;
+                if (silentFor > 1000) setStatus('connected', `Silent ${Math.floor(silentFor/1000)}s...`);
+                if (silentFor >= SILENCE_DURATION) stopListening();
+            }
+        }, 100);
+    }
+
+    async function stopListening() {
+        if (!isListening) return;
+        isListening = false;
+        voiceBtn.classList.remove('listening');
+        playStopBeep();
+        setStatus('connected', 'Connected');
+
+        if (silenceCheckInterval) { clearInterval(silenceCheckInterval); silenceCheckInterval = null; }
+        analyser = null;
+
+        if (localAudioTrack) {
+            try {
+                await room.localParticipant.unpublishTrack(localAudioTrack);
+                localAudioTrack.stop();
+            } catch (e) { console.log('Error stopping track:', e); }
+            localAudioTrack = null;
+        }
+    }
+
+    function toggleListening() {
+        if (isListening) stopListening();
+        else startListening();
+    }
+
+    // ==================== Text Input ====================
+
+    textInput.addEventListener('input', () => {
+        textInput.style.height = 'auto';
+        textInput.style.height = Math.min(textInput.scrollHeight, 120) + 'px';
+    });
+
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); }
+    });
+
+    sendBtn.addEventListener('click', sendText);
+
+    async function sendText() {
+        const text = textInput.value.trim();
+        if (!text) return;
+
+        addMessage(text, 'user');
+        textInput.value = '';
+        textInput.style.height = 'auto';
+
+        // Track message in session
+        if (currentSessionId) {
+            try {
+                const resp = await fetch(`/api/sessions/${currentSessionId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: text, source: 'text' })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.session_name) {
+                        // Name was auto-generated, refresh sessions
+                        await loadSessions();
+                    }
+                }
+            } catch (e) { console.error('Failed to track message:', e); }
+        }
+
+        if (isConnected && room) {
+            try {
+                room.localParticipant.publishData(
+                    new TextEncoder().encode(JSON.stringify({ type: 'text', text })),
+                    { reliable: true }
+                );
+                addProcessing('Processing');
+            } catch (e) {
+                console.error('Failed to send message:', e);
+                showError('Failed to send message');
+                removeProcessing();
+            }
+        } else {
+            showError('Not connected to voice service');
+            addMessage('Not connected to voice service', 'error');
+        }
+    }
+
+    // ==================== Utilities ====================
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatTime(isoString) {
+        const date = new Date(isoString);
+        const now = new Date();
+        const diff = now - date;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+        return date.toLocaleDateString();
+    }
+
+    // ==================== Mobile Tabs ====================
+
+    document.querySelectorAll('.mobile-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            const panel = tab.dataset.panel;
+            document.getElementById('sessionsSidebar').classList.toggle('mobile-visible', panel === 'sessions');
+            document.getElementById('chatMain').classList.toggle('hidden', panel !== 'chat');
+            document.getElementById('artifactsPanel').classList.toggle('mobile-visible', panel === 'artifacts');
+        });
+    });
+
+    // ==================== Event Listeners ====================
+
+    voiceBtn.addEventListener('click', toggleListening);
+    newSessionBtn.addEventListener('click', createSession);
+    document.addEventListener('click', () => getAudioContext(), { once: true });
+    document.addEventListener('touchstart', () => getAudioContext(), { once: true });
+
+    // ==================== Initialize ====================
+
+    async function init() {
+        await loadSessions();
+        await checkStorageMode();
+        connect();
+    }
+
+    init();
+</script>
+{% endblock %}

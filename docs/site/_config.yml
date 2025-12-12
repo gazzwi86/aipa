@@ -1,0 +1,46 @@
+title: AIPA
+description: Self-hosted AI Personal Assistant powered by Claude Code
+baseurl: "/aipa"
+url: "https://gazzwi86.github.io"
+
+theme: minima
+
+# Navigation
+header_pages:
+  - docs/getting-started.md
+  - docs/architecture.md
+  - docs/deployment.md
+  - docs/customization.md
+
+# Social
+github_username: gazzwi86
+twitter_username: gazzwi86
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /docs/:name/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: "doc"
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag

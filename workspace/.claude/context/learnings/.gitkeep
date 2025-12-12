@@ -1,0 +1,11 @@
+# Learnings Directory
+
+This directory stores accumulated knowledge and insights.
+
+Contents are automatically backed up to S3 and excluded from git.
+
+Examples:
+- Technical patterns discovered
+- Owner preferences learned
+- Error patterns and resolutions
+- Project-specific knowledge

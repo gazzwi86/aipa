@@ -1,0 +1,168 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  AWS_REGION: ap-southeast-2
+  ECR_REPOSITORY: aipa
+  ECS_SERVICE: aipa-service
+  ECS_CLUSTER: aipa-cluster
+  CONTAINER_NAME: aipa
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # Run CI first
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  # Build and push to ECR
+  build-push:
+    name: Build & Push to ECR
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  # Terraform plan (always runs on main)
+  terraform-plan:
+    name: Terraform Plan
+    needs: build-push
+    runs-on: ubuntu-latest
+    outputs:
+      plan-exit-code: ${{ steps.plan.outputs.exitcode }}
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var="container_image=${{ needs.build-push.outputs.image }}" \
+            -detailed-exitcode \
+            -out=tfplan
+        continue-on-error: true
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: terraform/tfplan
+
+      - name: Plan Status
+        if: steps.plan.outputs.exitcode == '1'
+        run: exit 1
+
+  # Deploy to ECS (only on main branch, after approval for production)
+  deploy-ecs:
+    name: Deploy to ECS
+    needs: [build-push, terraform-plan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition aipa \
+            --query taskDefinition > task-definition.json
+
+      - name: Update task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ needs.build-push.outputs.image }}
+
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Verify deployment health
+        run: |
+          echo "Waiting for service to stabilize..."
+          sleep 30
+
+          # Get the API endpoint from terraform output or use known URL
+          HEALTH_URL="${{ secrets.API_ENDPOINT }}/health"
+
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "Deployment healthy!"
+              exit 0
+            fi
+            echo "Health check attempt $i: HTTP $response"
+            sleep 10
+          done
+
+          echo "Health check failed after 10 attempts"
+          exit 1

@@ -52,6 +52,12 @@ class Settings(BaseSettings):
         description="DynamoDB table name for session storage",
     )
 
+    # Chat API (for testing/evaluation)
+    enable_chat_api: bool = Field(
+        default=False,
+        description="Enable /api/chat endpoint (disabled in production by default)",
+    )
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"

@@ -301,10 +301,15 @@ def pytest_configure(config):
         "integration: marks test as integration test (requires external services)",
     )
     config.addinivalue_line("markers", "slow: marks test as slow running")
+    config.addinivalue_line(
+        "markers",
+        "agent_eval: marks test as agent evaluation with LLM-as-judge (requires --run-agent-evals)",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration tests unless explicitly requested."""
+    """Skip integration and agent_eval tests unless explicitly requested."""
+    # Skip integration tests
     if not config.getoption("--run-integration", default=False):
         skip_integration = pytest.mark.skip(
             reason="Integration tests require --run-integration flag"
@@ -312,6 +317,13 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_integration)
+
+    # Skip agent_eval tests (LLM-as-judge tests)
+    if not config.getoption("--run-agent-evals", default=False):
+        skip_agent_eval = pytest.mark.skip(reason="Agent eval tests require --run-agent-evals flag")
+        for item in items:
+            if "agent_eval" in item.keywords:
+                item.add_marker(skip_agent_eval)
 
 
 def pytest_addoption(parser):
@@ -328,3 +340,116 @@ def pytest_addoption(parser):
         default=False,
         help="Only run cleanup of remaining test resources",
     )
+    parser.addoption(
+        "--run-agent-evals",
+        action="store_true",
+        default=False,
+        help="Run agent evaluation tests that require running agent and Ollama",
+    )
+
+
+# ============================================================================
+# Agent Evaluation Fixtures (for real agent testing with LLM-as-judge)
+# ============================================================================
+
+
+@pytest.fixture(scope="session")
+def ollama_judge():
+    """Shared Ollama judge for evaluating agent responses.
+
+    Uses gemma3:12b by default. Requires Ollama running on localhost:11434.
+    """
+    try:
+        from tests.evals.judge.ollama_judge import OllamaJudge
+    except ImportError:
+        pytest.skip("DeepEval not installed - run: pip install deepeval")
+        return None
+
+    judge = OllamaJudge(model="gemma3:12b")
+
+    # Verify Ollama is accessible
+    try:
+        import httpx
+
+        response = httpx.get("http://localhost:11434/api/tags", timeout=5)
+        if response.status_code != 200:
+            pytest.skip("Ollama not accessible at localhost:11434")
+    except Exception:
+        pytest.skip("Ollama not accessible at localhost:11434")
+
+    return judge
+
+
+@pytest.fixture(scope="session")
+def authenticated_client():
+    """HTTP client with valid session cookie for API access.
+
+    Authenticates once per test session, reuses cookie for all tests.
+    Requires TEST_PASSWORD environment variable.
+    """
+    import httpx
+
+    password = os.environ.get("TEST_PASSWORD")
+    if not password:
+        pytest.skip("TEST_PASSWORD not set - skipping agent eval tests")
+        return None
+
+    base_url = os.environ.get("EVAL_API_ENDPOINT", "http://localhost:8000")
+
+    client = httpx.Client(
+        base_url=base_url,
+        timeout=120,
+        follow_redirects=True,
+    )
+
+    # Login to get session cookie
+    try:
+        response = client.post("/login", data={"password": password})
+    except Exception as e:
+        pytest.skip(f"Cannot connect to agent at {base_url}: {e}")
+        return None
+
+    if response.status_code != 200:
+        pytest.fail(f"Failed to authenticate: {response.status_code}")
+
+    # Verify cookie was set
+    if "aipa_session" not in client.cookies:
+        pytest.fail("No session cookie received after login")
+
+    return client
+
+
+@pytest.fixture
+def chat(authenticated_client):
+    """Send message to agent and get response.
+
+    Uses authenticated client with session cookie.
+    Returns a function that sends a message and returns the response.
+
+    Example:
+        def test_weather(chat):
+            response = chat("What's the weather in Melbourne?")
+            assert "temperature" in response.lower()
+    """
+    if authenticated_client is None:
+        pytest.skip("authenticated_client not available")
+        return None
+
+    def _chat(message: str, session_id: str | None = None) -> str:
+        response = authenticated_client.post(
+            "/api/chat",
+            json={"message": message, "session_id": session_id},
+        )
+
+        if response.status_code == 401:
+            pytest.fail("Authentication failed - check TEST_PASSWORD")
+        if response.status_code == 404:
+            pytest.fail("Chat API disabled - set ENABLE_CHAT_API=true")
+        if response.status_code == 500:
+            error = response.json().get("detail", "Unknown error")
+            pytest.fail(f"Agent error: {error}")
+
+        response.raise_for_status()
+        return response.json()["response"]
+
+    return _chat

@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from server.config import get_settings
 from server.handlers.auth import router as auth_router
+from server.handlers.chat import router as chat_router
 from server.handlers.files import router as files_router
 from server.handlers.sessions import router as sessions_router
 from server.handlers.voice import router as voice_router
@@ -101,6 +102,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(auth_router, tags=["auth"])
+app.include_router(chat_router, tags=["chat"])
 app.include_router(files_router, tags=["files"])
 app.include_router(sessions_router, tags=["sessions"])
 app.include_router(voice_router, tags=["voice"])

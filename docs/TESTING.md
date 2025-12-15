@@ -60,7 +60,7 @@ uv run pytest tests/unit/test_auth.py -v
 | Marker | Description |
 |--------|-------------|
 | `@pytest.mark.integration` | Requires external services |
-| `@pytest.mark.agent_eval` | Requires running agent + Ollama |
+| `@pytest.mark.agent_eval` | Requires running agent |
 | `@pytest.mark.slow` | Long-running tests |
 | `@pytest.mark.e2e` | End-to-end browser tests |
 
@@ -391,13 +391,13 @@ uv run bandit -r server/
 Tests run in GitHub Actions:
 - **Unit tests** run on every PR (including `tests/unit/skills/`)
 - **Integration tests** skipped unless secrets are configured
-- **Agent eval tests** are **local-only** - they require a running agent and Ollama (cannot run in CI)
+- **Agent eval tests** are **local-only** - they require a running agent (cannot run in CI)
 
 ```yaml
 # CI runs these:
 uv run pytest tests/unit/ -v
 
-# CI does NOT run these (require local agent + Ollama):
+# CI does NOT run these (require local agent):
 uv run pytest tests/evals/ --run-agent-evals
 ```
 

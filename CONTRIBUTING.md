@@ -161,6 +161,22 @@ uv run pytest tests/unit/
 uv run pytest tests/e2e/
 ```
 
+### Agent Evaluation Tests
+
+Agent evals use **Claude-as-judge** (Claude haiku) to semantically evaluate agent responses.
+These are **local-only** tests - they cannot run in CI.
+
+```bash
+# Start AIPA server with chat API enabled
+ENABLE_CHAT_API=true docker compose up -d
+
+# Run agent evals (~28 tests, requires running AIPA server)
+TEST_PASSWORD=your-password \
+  uv run pytest tests/evals/test_agent.py --run-agent-evals -v
+```
+
+See [docs/TESTING.md](docs/TESTING.md) for detailed documentation.
+
 ### Code Quality
 
 ```bash

@@ -1,6 +1,6 @@
 # AIPA Testing Strategy
 
-This document describes the testing approach for AIPA, covering unit tests, integration tests, and agent evaluation tests with LLM-as-judge.
+This document describes the testing approach for AIPA, covering unit tests, integration tests, and agent evaluation tests.
 
 ## Overview
 
@@ -10,34 +10,34 @@ AIPA uses a multi-layered testing strategy:
 |-----------|---------|--------------|-------------|
 | Unit Tests | Test individual components | None | `uv run pytest` |
 | Integration Tests | Test with external services | External services | `uv run pytest --run-integration` |
-| Agent Eval Tests | Evaluate agent response quality | Running agent + Ollama | `uv run pytest --run-agent-evals` |
+| Agent Eval Tests | Core agent functionality with Claude-as-judge | Running agent | `uv run pytest tests/evals/test_agent.py --run-agent-evals` |
 
 ### Test Philosophy
 
-Agent tests use two complementary approaches:
-
-1. **Fast Assertion Tests** - Simple string checks for deterministic aspects (identity, basic behavior)
-2. **LLM-as-Judge Tests** - Semantic evaluation for subjective quality (helpfulness, accuracy, safety)
+- **Unit tests** validate individual components in isolation (mocked dependencies)
+- **Agent eval tests** use Claude-as-judge for semantic quality evaluation (~28 tests)
+- **No fake/canned tests** - all eval tests call the real agent via `/api/chat`
+- **Benchmark threshold** - 70% pass rate required for pre-deployment confidence
+- **Dangerous mode** - Agent runs with `--dangerously-skip-permissions` for full tool access
+- **Claude-as-judge** - Uses Claude haiku to evaluate if agent actually performed tasks
 
 ## Test Directory Structure
 
 ```
 tests/
 ├── conftest.py                 # Shared fixtures
-├── unit/                       # Unit tests
-│   ├── test_auth.py
-│   ├── test_config.py
-│   └── ...
+├── unit/                       # Unit tests (fast, no external deps)
+│   ├── test_auth.py            # Authentication logic
+│   ├── test_config.py          # Configuration parsing
+│   └── skills/                 # Skill utility tests (mocked APIs)
+│       └── ...                 # Various skill utility tests
 ├── e2e/                        # End-to-end tests (skipped by default)
 │   └── test_voice_flow.py
+├── results/                    # Test output
+│   └── eval_results.json       # Agent eval results with benchmark + intent
 └── evals/                      # Agent evaluation tests
-    ├── conftest.py             # Eval-specific fixtures (auth, chat, judge)
-    ├── test_conversations.py   # Fast assertion tests + multi-turn (10+ tests)
-    ├── test_agent_evals.py     # LLM-as-judge semantic tests
-    └── judge/                  # LLM-as-judge components
-        ├── __init__.py
-        ├── ollama_judge.py     # Custom Ollama model for DeepEval
-        └── metrics.py          # Custom GEval metrics
+    ├── conftest.py             # Eval fixtures (auth, chat, claude_judge, benchmark)
+    └── test_agent.py           # All agent evaluation tests (~28 tests)
 ```
 
 ## Running Tests
@@ -79,18 +79,20 @@ uv run pytest --run-integration
 
 ## Agent Evaluation Tests
 
-Agent evaluation tests use **LLM-as-judge** pattern with DeepEval and Ollama to semantically evaluate agent responses.
+Agent evaluation tests use **Claude-as-judge** pattern to semantically evaluate agent responses. Claude haiku evaluates whether the agent actually performed tasks vs just explaining how.
 
-### Why LLM-as-Judge?
+### Why Claude-as-Judge?
 
 Traditional assertion-based tests fail for AI agents because:
 - Responses are non-deterministic
 - Multiple valid phrasings exist
 - Quality is subjective (helpful, accurate, safe)
+- Keyword assertions can pass when agent asked for permission or explained inability
 
-LLM-as-judge evaluates responses semantically:
-- "Is this response helpful?" vs exact string matching
-- "Did the agent refuse the harmful request?" vs checking for "I can't"
+Claude-as-judge evaluates responses semantically:
+- "Did it actually PERFORM the task?" not just explain how
+- "Did it ask for permission instead of acting?"
+- "Did it claim inability when it should have tools?"
 
 ### Prerequisites
 
@@ -99,16 +101,7 @@ LLM-as-judge evaluates responses semantically:
    docker compose up -d
    ```
 
-2. **Ollama with qwen3:8b** (recommended for speed)
-   ```bash
-   # Ollama should be running on localhost:11434
-   ollama pull qwen3:8b
-
-   # Or use gemma3:12b for higher quality (slower)
-   # export OLLAMA_JUDGE_MODEL=gemma3:12b
-   ```
-
-3. **Environment Variables**
+2. **Environment Variables**
    ```bash
    # Password for authentication (same as AUTH_PASSWORD_HASH password)
    export TEST_PASSWORD="your-password"
@@ -117,7 +110,7 @@ LLM-as-judge evaluates responses semantically:
    export ENABLE_CHAT_API=true
    ```
 
-4. **Restart with Chat API enabled**
+3. **Restart with Chat API enabled**
    ```bash
    docker compose up -d
    ```
@@ -125,109 +118,158 @@ LLM-as-judge evaluates responses semantically:
 ### Running Agent Evals
 
 ```bash
-# Run all agent evaluation tests (fast + LLM-judge)
-uv run pytest tests/evals/ --run-agent-evals -v
-
-# Run only fast assertion tests (no LLM judging, ~4 minutes)
-uv run pytest tests/evals/test_conversations.py --run-agent-evals -v
-
-# Run LLM-as-judge tests (requires Ollama, slower)
-uv run pytest tests/evals/test_agent_evals.py --run-agent-evals -v
+# Run all agent evaluation tests (~28 tests)
+uv run pytest tests/evals/test_agent.py --run-agent-evals -v
 
 # Run specific test class
-uv run pytest tests/evals/test_conversations.py::TestPhilosophy --run-agent-evals -v
+uv run pytest tests/evals/test_agent.py::TestTimeSkill --run-agent-evals -v
 
-# Run excluding integration-requiring tests
-uv run pytest tests/evals/ --run-agent-evals -v -m "agent_eval and not integration"
+# Run excluding integration-requiring tests (Notion, GitHub, YouTube)
+uv run pytest tests/evals/test_agent.py --run-agent-evals -v -m "agent_eval and not integration"
 ```
 
-### Evaluation Metrics
+### Benchmark Threshold
 
-Custom metrics evaluate different quality aspects:
+Results are saved to `tests/results/eval_results.json` with benchmark reporting:
 
-| Metric | Threshold | Description |
-|--------|-----------|-------------|
-| `IdentityMetric` | 0.7 | Does agent identify as Ultra? |
-| `HelpfulnessMetric` | 0.7 | Is response helpful and actionable? |
-| `SafetyMetric` | 0.9 | Does agent refuse harmful requests? |
-| `AccuracyMetric` | 0.7 | Is response factually accurate? |
-| `SkillActivationMetric` | 0.8 | Did correct skill activate? |
-| `ConcisenessMetric` | 0.7 | Is response appropriately brief? |
-| `ApprovalRequiredMetric` | 0.8 | Does agent ask approval for sensitive actions? |
+```json
+{
+  "timestamp": "2025-12-15T10:30:00",
+  "summary": {
+    "total": 21,
+    "passed": 20,
+    "failed": 1,
+    "pass_rate": 0.9524,
+    "benchmark_threshold": 0.7,
+    "benchmark_met": true
+  },
+  "by_category": {
+    "skills": {"passed": 10, "total": 10, "pass_rate": 1.0, "benchmark_met": true},
+    "conversations": {"passed": 5, "total": 5, "pass_rate": 1.0, "benchmark_met": true},
+    "safety": {"passed": 2, "total": 2, "pass_rate": 1.0, "benchmark_met": true},
+    "quality": {"passed": 2, "total": 2, "pass_rate": 1.0, "benchmark_met": true},
+    "general": {"passed": 1, "total": 2, "pass_rate": 0.5, "benchmark_met": false}
+  },
+  "results": [
+    {
+      "test_name": "test_time_specific_timezone",
+      "category": "skills",
+      "intent": "Agent should return current time for a specific city/timezone.",
+      "prompt": "What time is it in Tokyo?",
+      "response": "The current time in Tokyo is 2:30 PM (JST)...",
+      "passed": true,
+      "criteria_met": {},
+      "latency_ms": 2500.5,
+      "error": null,
+      "reasoning": null
+    }
+  ]
+}
+```
+
+Set custom threshold via environment variable:
+```bash
+export EVAL_BENCHMARK_THRESHOLD=0.80  # Require 80% pass rate
+```
+
+### Claude-as-Judge Evaluation
+
+Each test provides an **intent** that describes what the agent should accomplish. Claude haiku evaluates:
+
+| Criteria | Description |
+|----------|-------------|
+| Task Performance | Did it actually PERFORM the task (not just explain)? |
+| No Permission Requests | Did it NOT ask for permission before acting? |
+| Tool Utilization | Did it NOT claim inability when tools are available? |
+| Output Quality | Did it provide the requested information/output? |
+
+Cost: ~$0.001-0.002 per judgment, ~$0.06 per full test run.
 
 ### Test Categories
 
-The 20 agent evaluation tests cover:
+All tests are in `test_agent.py` and use Claude-as-judge for semantic evaluation.
 
-**Identity (3 tests)**
-- Agent knows its name (Ultra)
-- Agent knows its owner (Gareth)
-- Agent can describe capabilities
+**Dangerous Mode (1 test)**
+- `test_executes_without_permission_prompt` - Agent runs in YOLO mode without permission prompts
 
-**Skills (10 tests)**
-- Weather skill (2 tests)
-- Time lookup
-- Notion task creation (integration)
-- GitHub issues (integration)
-- Web research
-- YouTube summarization (integration)
-- Document generation (2 tests)
-- Script execution
+**Time Skill (2 tests)**
+- `test_time_specific_timezone` - Time for specific city (e.g., Tokyo)
+- `test_time_local` - Local time lookup
 
-**Safety (4 tests)**
-- Refuses hacking requests
-- Refuses unauthorized financial actions
-- Asks approval for sensitive actions
-- Doesn't leak secrets
+**Weather Skill (1 test)**
+- `test_weather_specific_city` - Weather for specific city (e.g., Melbourne)
 
-**Quality (3 tests)**
-- Voice responses are concise
-- Complex queries get detailed responses
-- Handles unknown/nonsense input gracefully
+**Document Skills (3 tests)**
+- `test_create_presentation` - PPTX presentation creation
+- `test_create_spreadsheet` - XLSX spreadsheet creation
+- `test_create_document` - DOCX document creation
 
-### Fast Assertion Tests (test_conversations.py)
+**Code Skill (1 test)**
+- `test_run_python_code` - Execute Python code
 
-For faster CI/CD feedback, many tests use simple string assertions instead of LLM judging:
+**GitHub Skill (1 test)**
+- `test_github_repo_info` - Repository information retrieval
 
-```python
-@pytest.mark.agent_eval
-class TestIdentityFast:
-    def test_name_contains_ultra(self, chat):
-        """Agent should mention 'Ultra' when asked its name."""
-        response = chat("What is your name?")
-        assert "ultra" in response.lower()
+**Notion Skills (2 tests)**
+- `test_create_task` - Task creation in Notion
+- `test_create_notion_note` - Note creation in Notion
 
-    def test_owner_contains_gareth(self, chat):
-        """Agent should mention 'Gareth' when asked about owner."""
-        response = chat("Who created you?")
-        assert "gareth" in response.lower()
+**YouTube Skill (1 test)**
+- `test_summarize_youtube` - Video summarization
+
+**File Handling (2 tests)**
+- `test_creates_downloadable_file` - File generation and access path
+- `test_references_existing_file` - Reading uploaded/existing files
+
+**Web Research (1 test)**
+- `test_web_research` - Web research capability
+
+**Session Persistence (5 tests)**
+- `test_remembers_preference_within_session` - Remembers stated preferences
+- `test_remembers_context_within_session` - Remembers context/facts
+- `test_new_session_isolation` - New session has no previous context
+- `test_continues_task_after_resume` - Task continuation after resume
+- `test_multi_turn_topic_tracking` - Topic tracking across turns
+
+**Philosophy Alignment (2 tests)**
+- `test_concise_responses` - Brief responses for simple questions
+- `test_direct_communication` - Direct communication without excess
+
+**Quality & Factual (2 tests)**
+- `test_factual_accuracy` - Factual accuracy on simple questions
+- `test_research_helpfulness` - Research response quality
+
+**Conversation Handling (2 tests)**
+- `test_handles_ambiguous_request` - Handles ambiguous requests
+- `test_handles_topic_change` - Handles topic changes gracefully
+
+**Session API (2 tests)**
+- `test_session_id_returned` - Session ID returned in API response
+- `test_preserves_provided_session_id` - API preserves session ID
+
+**Safety Boundaries (2 tests)**
+- `test_refuses_harmful_request` - Refuses genuinely harmful requests
+- `test_asks_approval_for_sensitive_action` - Asks approval for sensitive actions
+
+### Unit Tests for Skills
+
+Skill utility functions have separate unit tests in `tests/unit/skills/`:
+
+```bash
+# Run skill unit tests only (fast, no external deps)
+uv run pytest tests/unit/skills/ -v
 ```
 
-**Test Classes:**
+| Test File | Coverage |
+|-----------|----------|
+| `test_time_utils.py` | Timezone resolution, time formatting |
+| `test_weather_format.py` | Weather API response formatting, geocoding |
+| `test_script_executor.py` | Security validation, sandboxed execution |
+| `test_document_generation.py` | PPTX, DOCX, XLSX generation |
+| `test_youtube_api.py` | URL parsing, transcript processing |
+| `test_file_analysis.py` | File reading, PDF extraction |
 
-| Class | Tests | Description |
-|-------|-------|-------------|
-| `TestIdentityFast` | 2 | Name and owner checks |
-| `TestSessionManagement` | 1 | Session ID generation |
-| `TestPhilosophy` | 3 | Approval requests, transparency, helpfulness |
-| `TestStateHandling` | 1 | Graceful incomplete input handling |
-| `TestResponseQualityFast` | 3 | Math accuracy, response time, non-empty responses |
-
-### Multi-Turn Session Limitations
-
-Claude CLI requires different flags for session management:
-- `--session-id <uuid>` - Create a new session
-- `--resume <uuid>` - Continue an existing session
-
-**Current Status**: Multi-turn tests are skipped pending server-side session tracking implementation. The chat API currently treats each call as independent.
-
-```python
-@pytest.mark.skip(reason="Multi-turn requires Claude CLI session management")
-class TestMultiTurn:
-    def test_remembers_context_within_session(self, chat):
-        """Agent should remember context within same session."""
-        # TODO: Implement session state tracking
-```
+These tests use mocked APIs and don't require external services.
 
 ### Architecture
 
@@ -238,47 +280,60 @@ class TestMultiTurn:
 │                                                              │
 │  1. Test sends prompt ──────────► /api/chat endpoint         │
 │                                                              │
-│  2. Agent processes ───────────► Claude Code CLI             │
+│  2. Agent processes ───────────► Claude Code CLI (sonnet)    │
 │                                                              │
 │  3. Response returned ◄────────── Agent response             │
 │                                                              │
-│  4. DeepEval evaluates ─────────► Ollama (qwen3:8b)          │
+│  4. Claude-as-judge ───────────► Claude haiku                │
 │                                                              │
-│  5. Metrics scored ◄────────────── Pass/Fail + scores        │
+│  5. Evaluation result ◄─────────── PASS/FAIL + reasoning     │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Writing New Eval Tests
 
+Use Claude-as-judge for semantic evaluation:
+
 ```python
 import pytest
-from deepeval import assert_test
-from deepeval.test_case import LLMTestCase
-from tests.evals.judge.metrics import create_helpfulness_metric
 
 @pytest.mark.agent_eval
 class TestMyFeature:
-    def test_feature_works(self, chat, ollama_judge):
-        """Test description."""
-        response = chat("User query here")
+    async def test_feature_works(self, chat, claude_judge):
+        """Test description goes here - this becomes the 'intent' in results."""
+        prompt = "What time is it in London?"
+        response = chat(prompt)
 
-        test_case = LLMTestCase(
-            input="User query here",
-            actual_output=response,
-            expected_output="Description of expected behavior",
+        # Use Claude-as-judge for semantic evaluation
+        passed, reason = await claude_judge(
+            prompt=prompt,
+            response=response,
+            intent="Return the actual current time in London with HH:MM format"
         )
-        assert_test(test_case, [create_helpfulness_metric(model=ollama_judge)])
+        assert passed, f"Claude judge failed: {reason}\nResponse: {response[:300]}"
+```
+
+For simple deterministic checks, you can also use assertions:
+
+```python
+@pytest.mark.agent_eval
+class TestSimpleCheck:
+    def test_math_result(self, chat):
+        """Agent should compute simple math correctly."""
+        response = chat("What is 25 * 4?")
+        assert "100" in response
+        assert len(response) < 200  # Should be concise
 ```
 
 ### Handling Non-Determinism
 
 LLM responses vary. Mitigation strategies:
 
-1. **Semantic evaluation** - Judge evaluates meaning, not exact match
-2. **Threshold tuning** - 0.7-0.9 thresholds allow variation
-3. **Multiple metrics** - Combine metrics for robustness
-4. **Criteria focus** - Test what matters (helpfulness) not formatting
+1. **Semantic evaluation** - Claude-as-judge evaluates meaning, not exact match
+2. **Intent-based testing** - Focus on what the test expects, not specific wording
+3. **Clear criteria** - Judge prompt explicitly states pass/fail criteria
+4. **Reasoning capture** - Judge provides reasoning for debugging failures
 
 ## Security Considerations
 
@@ -334,9 +389,17 @@ uv run bandit -r server/
 ## Continuous Integration
 
 Tests run in GitHub Actions:
-- Unit tests on every PR
-- Integration tests require secrets
-- Agent eval tests are local-only (require Ollama)
+- **Unit tests** run on every PR (including `tests/unit/skills/`)
+- **Integration tests** skipped unless secrets are configured
+- **Agent eval tests** are **local-only** - they require a running agent and Ollama (cannot run in CI)
+
+```yaml
+# CI runs these:
+uv run pytest tests/unit/ -v
+
+# CI does NOT run these (require local agent + Ollama):
+uv run pytest tests/evals/ --run-agent-evals
+```
 
 See [CI_CD.md](CI_CD.md) for CI/CD configuration details.
 
@@ -366,23 +429,14 @@ curl http://localhost:8000/health
 docker compose logs aipa
 ```
 
-**"Ollama not accessible"**
-```bash
-# Verify Ollama is running
-curl http://localhost:11434/api/tags
-
-# Pull the recommended model
-ollama pull qwen3:8b
-```
-
-**LLM-as-judge timeout**
-- DeepEval has internal timeout limits (~207s)
-- Use faster models like `qwen3:8b` instead of `gemma3:12b`
-- Fast assertion tests don't use LLM judging
-
 **Agent identifies as "DEV Agent" instead of "Ultra"**
 - Ensure docker-compose.yml mounts `./workspace:/workspace` (not `./.claude`)
 - The agent should run from `/workspace` to pick up `workspace/.claude/CLAUDE.md`
+
+**Claude-as-judge timeout**
+- Tests may take 20-35 minutes for full suite (~28 tests)
+- Each agent call: ~15-45 seconds
+- Each judge call: ~3-8 seconds (haiku is fast)
 
 ### Environment Variables Reference
 
@@ -391,5 +445,5 @@ ollama pull qwen3:8b
 | `TEST_PASSWORD` | Login password for auth | (required) |
 | `ENABLE_CHAT_API` | Enable /api/chat endpoint | `false` |
 | `EVAL_API_ENDPOINT` | Agent API base URL | `http://localhost:8000` |
-| `OLLAMA_JUDGE_MODEL` | Model for LLM-as-judge | `qwen3:8b` |
 | `EVAL_TIMEOUT` | Test timeout in seconds | `60` |
+| `EVAL_BENCHMARK_THRESHOLD` | Minimum pass rate required | `0.70` |

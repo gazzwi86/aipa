@@ -9,7 +9,7 @@ This document describes the GitHub Actions CI/CD pipeline for AIPA.
 | CI | `ci.yml` | Push/PR to main | Code quality, security, tests |
 | Deploy | `deploy.yml` | Push to main | Build, push to ECR, deploy to ECS |
 | PR Review | `pr-review.yml` | Pull requests | Code review comments, security findings |
-| Evaluations | `evals.yml` | Manual/Daily | Agent behavior testing |
+| Docs | `docs.yml` | Push to main | Documentation deployment |
 
 ## CI Pipeline Jobs
 
@@ -178,23 +178,31 @@ terraform validate
 
 ## Agent Evaluations
 
-Evaluations test the deployed agent's responses:
+Agent evaluation tests use Claude-as-judge to semantically evaluate agent responses.
+
+**These tests are local-only** - they cannot run in CI because they require:
+- A running AIPA server with `/api/chat` enabled
+- Valid CLAUDE_CODE_OAUTH_TOKEN for Claude-as-judge
 
 ```bash
-# Run locally
-uv run pytest tests/evals -m eval -v
+# Prerequisites
+docker compose up -d  # Start AIPA server
 
-# CI runs daily at 6 AM UTC
-# Manual trigger: Actions > Agent Evaluations > Run workflow
+# Run agent evaluations (~28 tests)
+TEST_PASSWORD=your-password ENABLE_CHAT_API=true \
+  uv run pytest tests/evals/test_agent.py --run-agent-evals -v
 ```
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `TEST_PASSWORD` | (required) | Login password for authentication |
+| `ENABLE_CHAT_API` | `false` | Enable `/api/chat` endpoint |
 | `EVAL_API_ENDPOINT` | `http://localhost:8000` | API to test against |
-| `EVAL_TIMEOUT` | `60` | Timeout per request (seconds) |
-| `EVAL_MODEL` | `claude-sonnet-4-20250514` | Model identifier |
+| `EVAL_BENCHMARK_THRESHOLD` | `0.70` | Minimum pass rate required |
+
+See [TESTING.md](TESTING.md) for detailed agent evaluation documentation.
 
 ## Troubleshooting
 
@@ -261,7 +269,7 @@ The `.claude/hooks/git-commit.sh` automatically commits changes to `.claude/` co
 | CI workflow | `.github/workflows/ci.yml` |
 | Deploy workflow | `.github/workflows/deploy.yml` |
 | PR review workflow | `.github/workflows/pr-review.yml` |
-| Evals workflow | `.github/workflows/evals.yml` |
+| Docs workflow | `.github/workflows/docs.yml` |
 | Pre-commit hook | `.claude/hooks/pre-commit.sh` |
 | Linting config | `pyproject.toml` [tool.ruff] |
 | Type checking config | `pyproject.toml` [tool.mypy] |

@@ -445,5 +445,5 @@ docker compose logs aipa
 | `TEST_PASSWORD` | Login password for auth | (required) |
 | `ENABLE_CHAT_API` | Enable /api/chat endpoint | `false` |
 | `EVAL_API_ENDPOINT` | Agent API base URL | `http://localhost:8000` |
-| `EVAL_TIMEOUT` | Test timeout in seconds | `60` |
+| `EVAL_TIMEOUT` | Test timeout in seconds | `300` |
 | `EVAL_BENCHMARK_THRESHOLD` | Minimum pass rate required | `0.70` |

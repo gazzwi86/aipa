@@ -327,7 +327,7 @@ def eval_config() -> dict:
     """Configuration for agent evaluations."""
     return {
         "api_endpoint": os.getenv("EVAL_API_ENDPOINT", "http://localhost:8000"),
-        "timeout_seconds": int(os.getenv("EVAL_TIMEOUT", "60")),
+        "timeout_seconds": int(os.getenv("EVAL_TIMEOUT", "300")),
         "model": os.getenv("EVAL_MODEL", "claude-sonnet-4-20250514"),
     }
 
@@ -710,9 +710,11 @@ def authenticated_client():
 
     base_url = os.environ.get("EVAL_API_ENDPOINT", "http://localhost:8000")
 
+    # Default timeout of 300s for agent operations (web research can be slow)
+    default_timeout = int(os.environ.get("EVAL_TIMEOUT", "300"))
     client = httpx.Client(
         base_url=base_url,
-        timeout=120,
+        timeout=default_timeout,
         follow_redirects=True,
     )
 
@@ -742,6 +744,11 @@ def chat(authenticated_client, request):
     Supports multi-turn conversations via session_id parameter.
     Automatically records all interactions to tests/results/eval_results.json.
 
+    Args:
+        message: The message to send to the agent
+        session_id: Optional session ID for multi-turn conversations
+        timeout: Optional per-request timeout in seconds (default: 300s from EVAL_TIMEOUT)
+
     Example (single turn):
         def test_weather(chat):
             response = chat("What's the weather in Melbourne?")
@@ -753,6 +760,10 @@ def chat(authenticated_client, request):
             chat("My name is Alice", session_id=session_id)
             response = chat("What's my name?", session_id=session_id)
             assert "alice" in response.lower()
+
+    Example (custom timeout for slow operations):
+        def test_research(chat):
+            response = chat("Research topic X", timeout=600)
     """
     import time
 
@@ -760,7 +771,7 @@ def chat(authenticated_client, request):
         pytest.skip("authenticated_client not available")
         return None
 
-    def _chat(message: str, session_id: str | None = None) -> str:
+    def _chat(message: str, session_id: str | None = None, timeout: int | None = None) -> str:
         global _eval_results_recorder
         start_time = time.time()
         error_msg = None
@@ -770,6 +781,7 @@ def chat(authenticated_client, request):
             response = authenticated_client.post(
                 "/api/chat",
                 json={"message": message, "session_id": session_id},
+                timeout=timeout,  # Override client timeout if specified
             )
 
             if response.status_code == 401:

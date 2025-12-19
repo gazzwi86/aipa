@@ -1,33 +1,14 @@
 {
   "mcpServers": {
-    "voicemode": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["voice-mode[livekit]"],
-      "env": {
-        "STT_BASE_URL": "${STT_BASE_URL}",
-        "TTS_BASE_URL": "${TTS_BASE_URL}",
-        "TTS_VOICE": "${TTS_VOICE:-af_heart}",
-        "LIVEKIT_URL": "${LIVEKIT_URL}",
-        "LIVEKIT_API_KEY": "${LIVEKIT_API_KEY}",
-        "LIVEKIT_API_SECRET": "${LIVEKIT_API_SECRET}"
-      }
-    },
     "notion": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@notionhq/notion-mcp-server"],
-      "env": {
-        "NOTION_API_KEY": "${NOTION_API_KEY}"
-      }
+      "args": ["-y", "@notionhq/notion-mcp-server"]
     },
     "github": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@anthropic-ai/github-mcp-server"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
-      }
+      "args": ["-y", "@anthropic-ai/github-mcp-server"]
     },
     "playwright": {
       "type": "stdio",
@@ -44,34 +25,9 @@
       "command": "uvx",
       "args": ["fastmcp", "run", "https://knowledge-mcp.global.api.aws"]
     },
-    "aws-api": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["awslabs.aws-api-mcp-server@latest"],
-      "env": {
-        "AWS_REGION": "ap-southeast-2"
-      }
-    },
-    "terraform-registry": {
-      "type": "stdio",
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "hashicorp/terraform-mcp-server:0.3.0"]
-    },
-    "aws-terraform": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["awslabs.terraform-mcp-server@latest"],
-      "env": {
-        "AWS_REGION": "ap-southeast-2",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
     "context7": {
       "type": "http",
-      "url": "https://mcp.context7.com/mcp",
-      "headers": {
-        "CONTEXT7_API_KEY": "${CONTEXT7_API_TOKEN}"
-      }
+      "url": "https://mcp.context7.com/mcp"
     }
   }
 }

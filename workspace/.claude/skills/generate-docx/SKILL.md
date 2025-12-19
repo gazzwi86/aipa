@@ -77,7 +77,7 @@ def create_document(title: str, content: list[dict]) -> str:
 
     # Set document properties
     doc.core_properties.title = title
-    doc.core_properties.author = "Ultra (AIPA)"
+    doc.core_properties.author = "Blu (AIPA)"
 
     # Add title
     heading = doc.add_heading(title, level=0)

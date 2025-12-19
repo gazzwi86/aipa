@@ -3,7 +3,7 @@
 ## Project Brief
 
 **Project Name:** AIPA (AI Personal Assistant)
-**Codename:** Ultra
+**Codename:** Blu
 **Owner:** Gareth
 **Status:** In Development
 
@@ -180,7 +180,7 @@ python3 -c "import bcrypt; ..."       # Generate password hash
 #    - DYNAMODB_SESSIONS_TABLE (optional, for persistent sessions)
 
 # 4. Run
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.yml up --build
 
 # 5. Access http://localhost:8000
 ```
@@ -257,7 +257,6 @@ aipa/
 │   └── DEPLOYMENT.md   # Deployment guide
 ├── Dockerfile           # Container definition
 ├── docker-compose.yml   # Production stack
-└── docker-compose.dev.yml # Development stack
 ```
 
 ---
@@ -276,7 +275,7 @@ aipa/
 │                                                                           │
 │   2. SERVICE WAKING (if cold)                                            │
 │      ┌──────────────────────────────────────────────┐                    │
-│      │  "Starting Ultra..."                         │                    │
+│      │  "Starting Blu..."                           │                    │
 │      │  ████████░░░░░░░░░░░░░░░░░░░  35%           │                    │
 │      │  ~45 seconds                                 │                    │
 │      └──────────────────────────────────────────────┘                    │

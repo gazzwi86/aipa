@@ -8,7 +8,7 @@ Common issues and solutions.
 
 ## Service Issues
 
-### "Starting Ultra..." stuck
+### "Starting Blu..." stuck
 
 The service isn't waking up properly.
 

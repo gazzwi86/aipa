@@ -72,7 +72,7 @@ AIPA uses an on-demand pattern to minimize costs:
 
 2. If service is stopped
    Lambda: ecs.update_service(desiredCount=1)
-   UI shows: "Starting Ultra... 35%"
+   UI shows: "Starting Blu... 35%"
 
 3. UI polls /status every 3s until running
    Lambda checks: ecs.describe_services()

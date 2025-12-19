@@ -95,7 +95,7 @@ Priority order:
 # Research Report: [Topic]
 
 **Date**: [Date]
-**Researcher**: Ultra (AI Assistant)
+**Researcher**: Blu (AI Assistant)
 **Requested by**: Gareth
 
 ---

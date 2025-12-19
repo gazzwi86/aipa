@@ -144,7 +144,7 @@ python3 -c "import bcrypt; print(bcrypt.hashpw(b'dev', bcrypt.gensalt()).decode(
 # Add to .env as AUTH_PASSWORD_HASH
 
 # Run with hot-reload
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.yml up --build
 ```
 
 ### Running Tests

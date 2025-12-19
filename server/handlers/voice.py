@@ -61,7 +61,7 @@ async def voice_info(
 
     return ConnectionInfo(
         configured=True,
-        url=settings.livekit_url,
+        url=settings.livekit_url_for_browser,
         room="voice-ultra",  # Default room name
         message="Ready",
     )
@@ -124,6 +124,6 @@ async def get_voice_token(
 
     return TokenResponse(
         token=jwt_token,
-        url=settings.livekit_url,
+        url=settings.livekit_url_for_browser,
         room=room_name,
     )

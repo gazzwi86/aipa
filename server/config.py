@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     )
 
     # Application
-    agent_name: str = Field(default="Ultra", description="Name of the AI agent")
+    agent_name: str = Field(default="Blu", description="Name of the AI agent")
+    agent_model: str = Field(
+        default="claude-sonnet-4-5-20250514",
+        description="Claude model to use (alias like 'sonnet' or full model ID)",
+    )
     environment: Literal["development", "production"] = Field(default="development")
     log_level: str = Field(default="INFO")
 
@@ -38,9 +42,13 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", description="OpenAI API key for VoiceMode")
 
     # LiveKit (for VoiceMode remote transport)
-    livekit_url: str = Field(default="", description="LiveKit server URL")
+    livekit_url: str = Field(default="", description="LiveKit server URL (container internal)")
     livekit_api_key: str = Field(default="", description="LiveKit API key")
     livekit_api_secret: str = Field(default="", description="LiveKit API secret")
+    livekit_browser_url: str = Field(
+        default="",
+        description="LiveKit URL for browser connections (falls back to livekit_url)",
+    )
 
     # Paths
     workspace_path: str = Field(default="/workspace")
@@ -66,6 +74,16 @@ class Settings(BaseSettings):
     def has_session_storage(self) -> bool:
         """Check if DynamoDB session storage is configured."""
         return bool(self.dynamodb_sessions_table)
+
+    @property
+    def livekit_url_for_browser(self) -> str:
+        """Get the LiveKit URL for browser connections.
+
+        Uses livekit_browser_url if set, otherwise falls back to livekit_url.
+        This allows running local LiveKit where container uses internal URL
+        but browser needs localhost.
+        """
+        return self.livekit_browser_url or self.livekit_url
 
 
 @lru_cache

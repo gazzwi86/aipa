@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-AIPA (AI Personal Assistant) "Ultra" is a self-hosted Claude Code agent accessible via voice and text from anywhere. The implementation uses VoiceMode MCP with LiveKit for voice, deployed on AWS ECS Fargate with cost-optimized on-demand compute (~$4-9/month).
+AIPA (AI Personal Assistant) "Blu" is a self-hosted Claude Code agent accessible via voice and text from anywhere. The implementation uses VoiceMode MCP with LiveKit for voice, deployed on AWS ECS Fargate with cost-optimized on-demand compute (~$4-9/month).
 
 ### Key Design Decisions
 
@@ -80,7 +80,6 @@ AIPA (AI Personal Assistant) "Ultra" is a self-hosted Claude Code agent accessib
 - [x] Create Dockerfile with uv package manager
 - [x] ARM64 compatible build
 - [x] docker-compose.yml for local development
-- [x] docker-compose.dev.yml with hot-reload
 
 ---
 

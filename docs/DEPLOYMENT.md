@@ -145,7 +145,7 @@ aws_profile  = "your-aws-profile"
 aws_region   = "ap-southeast-2"
 environment  = "production"
 project_name = "aipa"
-agent_name   = "Ultra"
+agent_name   = "Blu"
 
 # ECS Configuration
 ecs_cpu          = 1024  # 1 vCPU
@@ -314,7 +314,7 @@ AWS_PROFILE=your-profile aws logs tail /aws/lambda/aipa-production-wakeup --foll
 │     │                                                                              │ │
 │     │   Browser shows:  ┌──────────────────────────┐                              │ │
 │     │                   │     🤖                    │                              │ │
-│     │                   │   Waking Ultra...        │                              │ │
+│     │                   │   Waking Blu...          │                              │ │
 │     │                   │   [━━━━━━━━━━━━━━━━━━━━] │                              │ │
 │     │                   │   ~30-60 seconds         │                              │ │
 │     │                   └──────────────────────────┘                              │ │
@@ -476,6 +476,86 @@ AWS_PROFILE=your-profile terraform destroy
 - S3 buckets (files and backups)
 - CloudWatch logs
 - Secrets Manager secrets
+
+---
+
+## GitHub Actions CI/CD
+
+### Required Secrets for Auto-Deploy
+
+To enable automatic deployment on push to main, configure these GitHub repository secrets:
+
+| Secret | Description | How to Get |
+|--------|-------------|------------|
+| `AWS_ROLE_ARN` | IAM role ARN for OIDC authentication | Create via Terraform or manually |
+| `API_ENDPOINT` | Deployed API Gateway URL | `terraform output api_endpoint` |
+
+### Setting Up OIDC Authentication
+
+1. **Create OIDC Provider in AWS**:
+```bash
+# Get GitHub's OIDC thumbprint
+THUMBPRINT=$(openssl s_client -connect token.actions.githubusercontent.com:443 \
+  -showcerts 2>/dev/null </dev/null | \
+  openssl x509 -fingerprint -noout | \
+  sed 's/SHA1 Fingerprint=//' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+
+# Create the OIDC provider (one-time setup)
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list "$THUMBPRINT"
+```
+
+2. **Create IAM Role** with trust policy:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::YOUR_ACCOUNT:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:YOUR_ORG/aipa:*"
+        }
+      }
+    }
+  ]
+}
+```
+
+3. **Configure GitHub Secrets**:
+   - Go to repository Settings > Secrets and variables > Actions
+   - Add `AWS_ROLE_ARN`: `arn:aws:iam::ACCOUNT_ID:role/aipa-github-actions`
+   - Add `API_ENDPOINT`: `https://your-api-id.execute-api.region.amazonaws.com`
+
+4. **Enable Auto-Deploy**:
+   Edit `.github/workflows/deploy.yml` and uncomment the push trigger:
+   ```yaml
+   on:
+     push:
+       branches: [main]
+     workflow_dispatch: ...
+   ```
+
+### Manual Deployment (Before Secrets Configured)
+
+Until AWS infrastructure is deployed, the deploy workflow only runs on manual trigger:
+
+```bash
+# Trigger manually from GitHub UI:
+# Actions > Deploy to AWS > Run workflow
+
+# Or via CLI:
+gh workflow run deploy.yml
+```
 
 ---
 

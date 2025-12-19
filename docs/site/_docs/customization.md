@@ -187,15 +187,6 @@ Configure what actions require approval in `.claude/CLAUDE.md`:
 
 ## Environment-Specific Config
 
-### Local Development
-
-Use `docker-compose.dev.yml` with:
-- Hot reload
-- Debug logging
-- Local file storage
-
-### Production
-
 Use `docker-compose.yml` with:
 - No hot reload
 - JSON logging

@@ -8,68 +8,162 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 1rem;
 }
 .login-box {
-    background: rgba(255,255,255,0.1);
-    padding: 2rem;
-    border-radius: 1rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 2.5rem;
+    border-radius: 1.5rem;
     width: 100%;
-    max-width: 320px;
-    backdrop-filter: blur(10px);
+    max-width: 380px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+.login-box .logo {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+.login-box .logo-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+    animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
 }
 .login-box h1 {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    font-size: 1.5rem;
+    font-size: 1.75rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+}
+.login-box .subtitle {
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 500;
 }
 .login-box .error {
-    background: rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
     color: #fca5a5;
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    margin-bottom: 1rem;
-    font-size: 0.875rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
     text-align: center;
+    font-weight: 500;
+}
+.login-box .form-group {
+    margin-bottom: 1.5rem;
+}
+.login-box label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
 }
 .login-box input {
     width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 0.5rem;
-    background: rgba(255,255,255,0.1);
-    color: #e8e8e8;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 0.75rem;
+    background: rgba(255,255,255,0.06);
+    color: #f1f5f9;
     font-size: 1rem;
-    margin-bottom: 1rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
 }
 .login-box input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #6366f1;
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+.login-box input::placeholder {
+    color: #475569;
 }
 .login-box button {
     width: 100%;
-    padding: 0.75rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
     border: none;
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     color: white;
     font-size: 1rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset;
+    letter-spacing: -0.01em;
 }
-.login-box button:hover { transform: scale(1.02); }
-.login-box button:active { transform: scale(0.98); }
+.login-box button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(255,255,255,0.15) inset;
+}
+.login-box button:active {
+    transform: translateY(0);
+}
+
+/* Decorative elements */
+.login-decoration {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.3;
+    pointer-events: none;
+}
+.login-decoration-1 {
+    width: 400px;
+    height: 400px;
+    background: #6366f1;
+    top: -100px;
+    left: -100px;
+}
+.login-decoration-2 {
+    width: 300px;
+    height: 300px;
+    background: #a855f7;
+    bottom: -50px;
+    right: -50px;
+}
 {% endblock %}
 
 {% block body %}
+<div class="login-decoration login-decoration-1"></div>
+<div class="login-decoration login-decoration-2"></div>
 <div class="login-container">
     <div class="login-box">
-        <h1>{{ agent_name }}</h1>
+        <div class="logo">
+            <div class="logo-icon">U</div>
+            <h1>{{ agent_name }}</h1>
+            <p class="subtitle">AI Personal Assistant</p>
+        </div>
         {% if error %}
         <div class="error">{{ error }}</div>
         {% endif %}
         <form method="POST" action="/login">
-            <input type="password" name="password" placeholder="Password" autofocus required>
-            <button type="submit">Login</button>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password" placeholder="Enter your password" autofocus required>
+            </div>
+            <button type="submit">Sign In</button>
         </form>
     </div>
 </div>

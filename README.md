@@ -86,7 +86,7 @@ python3 -c "import bcrypt; print(bcrypt.hashpw(b'YOUR_PASSWORD', bcrypt.gensalt(
 # Add LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET to .env
 
 # 5. Run
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.yml up --build
 
 # 6. Open http://localhost:8000
 ```
@@ -197,7 +197,7 @@ aipa/
 │                                                                 │
 │  2. If service is stopped                                       │
 │     Lambda: ecs.update_service(desiredCount=1)                 │
-│     UI shows: "Starting Ultra... ████░░░░░░░░ 35%"             │
+│     UI shows: "Starting Blu... ████░░░░░░░░ 35%"               │
 │                                                                 │
 │  3. UI polls /status every 3s until running                    │
 │     Lambda checks: ecs.describe_services()                     │
@@ -237,7 +237,7 @@ cd terraform && terraform fmt
 
 ## Troubleshooting
 
-### "Starting Ultra..." stuck
+### "Starting Blu..." stuck
 - Check Lambda logs in CloudWatch
 - Verify ECS task can pull from ECR
 - Check EFS mount points exist

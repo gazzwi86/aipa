@@ -429,7 +429,7 @@ curl http://localhost:8000/health
 docker compose logs aipa
 ```
 
-**Agent identifies as "DEV Agent" instead of "Ultra"**
+**Agent identifies as "DEV Agent" instead of "Blu"**
 - Ensure docker-compose.yml mounts `./workspace:/workspace` (not `./.claude`)
 - The agent should run from `/workspace` to pick up `workspace/.claude/CLAUDE.md`
 

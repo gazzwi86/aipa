@@ -1,7 +1,7 @@
 [project]
 name = "aipa"
 version = "0.1.0"
-description = "AI Personal Assistant - Ultra"
+description = "AI Personal Assistant - Blu"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
@@ -28,6 +28,7 @@ dependencies = [
     "livekit-agents>=1.0.0",
     "livekit-plugins-silero>=1.0.0",
     "livekit-plugins-openai>=1.0.0",  # For STT/TTS (local or OpenAI)
+    "livekit-plugins-turn-detector>=1.0.0",  # For smarter end-of-utterance detection
     # Note: livekit-plugins-anthropic removed - using Claude Code CLI instead
     # Document generation
     "python-pptx>=0.6.23",

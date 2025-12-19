@@ -11,7 +11,7 @@ class TestLogin:
         page.goto(f"{base_url}/login")
 
         # Check page title
-        expect(page).to_have_title("Login - Ultra")
+        expect(page).to_have_title("Login - Blu")
 
         # Check for password input
         password_input = page.locator('input[type="password"]')

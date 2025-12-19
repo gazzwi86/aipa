@@ -74,7 +74,7 @@ SESSION_SECRET=your-generated-secret
 ## Step 7: Run
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.yml up --build
 ```
 
 ## Step 8: Access

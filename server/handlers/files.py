@@ -5,15 +5,41 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 
 from server.config import Settings, get_settings
+from server.handlers.auth import require_auth_redirect
 from server.models.requests import FileInfo
 from server.services.auth import get_auth_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="server/templates")
+
+
+def validate_path_within(target: Path, root: Path) -> Path:
+    """Validate and resolve a path, ensuring it stays within the root directory.
+
+    Args:
+        target: The target path to validate
+        root: The root directory that target must be within
+
+    Returns:
+        The resolved target path
+
+    Raises:
+        HTTPException: 400 for invalid paths, 403 for access denied
+    """
+    try:
+        resolved_target = target.resolve()
+        resolved_root = root.resolve()
+        if not str(resolved_target).startswith(str(resolved_root)):
+            raise HTTPException(status_code=403, detail="Access denied")
+        return resolved_target
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path") from None
 
 
 def get_files_path(settings: Settings = Depends(get_settings)) -> Path:
@@ -171,14 +197,9 @@ async def files_page(
     path: str = "",
     session_id: str = "",
     settings: Settings = Depends(get_settings),
+    _auth: bool = Depends(require_auth_redirect),
 ):
     """Visual file browser page."""
-    auth = get_auth_service()
-    token = request.cookies.get("aipa_session")
-
-    if not token or not auth.verify_session(token):
-        return RedirectResponse(url="/login", status_code=302)
-
     # Get sessions for filter dropdown (if session service is available)
     sessions = []
     try:

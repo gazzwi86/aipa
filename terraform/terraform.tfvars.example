@@ -11,7 +11,7 @@ aws_profile  = "your-aws-profile"  # AWS CLI profile to use
 aws_region   = "ap-southeast-2"
 environment  = "production"
 project_name = "aipa"
-agent_name   = "Ultra"
+agent_name   = "Blu"
 
 # ECS Configuration
 # Note: Voice services require more memory. Recommended: 1024 CPU, 2048 memory
@@ -20,7 +20,7 @@ ecs_memory       = 2048  # 2 GB (needed for voice + STT/TTS if using OpenAI)
 use_fargate_spot = true  # ~70% cheaper, but can be interrupted
 
 # GitHub repository (for self-update capability)
-github_repo = "gazzwi86/aipa"
+github_repo = "gazzwi86/blu"
 
 # Domain (optional - leave empty to use API Gateway URL)
 # domain_name = "api.yourdomain.com"

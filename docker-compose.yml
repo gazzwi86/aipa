@@ -8,27 +8,32 @@ services:
       - "8000:8000"
     volumes:
       # Mount workspace for persistence (agent works here)
-      # This includes workspace/.claude with the Ultra agent config
+      # This includes workspace/.claude with the Blu agent config
       - ./workspace:/workspace
     environment:
       # Authentication
       - AUTH_PASSWORD_HASH=${AUTH_PASSWORD_HASH}
       - SESSION_SECRET=${SESSION_SECRET}
-      # LiveKit for VoiceMode
-      - LIVEKIT_URL=${LIVEKIT_URL}
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      # LiveKit for VoiceMode (local server)
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+      # Browser connects to LiveKit via host (for token generation)
+      - LIVEKIT_BROWSER_URL=ws://localhost:7880
       # Local voice services (faster-whisper-server + Kokoro)
       - STT_BASE_URL=http://whisper:8000/v1
       - TTS_BASE_URL=http://kokoro:8880/v1
       - TTS_VOICE=af_heart
       # Claude Code Authentication (long-lived token)
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
-      # MCP server API keys
+      # MCP server API keys (names must match what MCP servers expect)
       - NOTION_API_KEY=${NOTION_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN}
+      - CONTEXT7_API_TOKEN=${CONTEXT7_API_TOKEN}
       # Application
-      - AGENT_NAME=${AGENT_NAME:-Ultra}
+      - AGENT_NAME=${AGENT_NAME:-Blu}
+      - AGENT_MODEL=${AGENT_MODEL:-claude-sonnet-4-5-20250514}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Testing/Development (set ENABLE_CHAT_API=true in .env for eval tests)
@@ -39,6 +44,7 @@ services:
     depends_on:
       - whisper
       - kokoro
+      - livekit
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -46,22 +52,55 @@ services:
       retries: 3
       start_period: 10s
 
+  # Local LiveKit Server for real-time voice communication
+  # See: https://docs.livekit.io/home/self-hosting/local/
+  livekit:
+    image: livekit/livekit-server:latest
+    # Using config-body instead of --dev to control log level (--dev forces debug)
+    command: --bind 0.0.0.0 --node-ip 127.0.0.1
+    ports:
+      - "7880:7880"      # WebSocket signaling
+      - "7881:7881"      # WebRTC over TCP
+      - "50000-50020:50000-50020/udp"  # WebRTC UDP (limited range for dev)
+    environment:
+      # LiveKit config as YAML - matches --dev defaults but with warn logging
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50020
+          use_external_ip: false
+        keys:
+          devkey: secret
+        logging:
+          level: warn
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   # Local Speech-to-Text (faster-whisper-server - OpenAI API compatible)
   # See: https://github.com/fedirz/faster-whisper-server
   whisper:
     image: fedirz/faster-whisper-server:latest-cpu
     environment:
       # Model options (smallest to largest, faster to more accurate):
-      # - Systran/faster-whisper-tiny.en (fastest, less accurate)
-      # - Systran/faster-whisper-base.en (balanced)
-      # - Systran/faster-whisper-small.en (more accurate, slower)
-      - WHISPER__MODEL=${WHISPER_MODEL:-Systran/faster-whisper-base.en}
+      # - Systran/faster-whisper-tiny.en   (39M params, fastest, least accurate)
+      # - Systran/faster-whisper-base.en   (74M params, default)
+      # - Systran/faster-whisper-small.en  (244M params, recommended for accuracy)
+      # - Systran/faster-whisper-medium.en (764M params, best accuracy, slowest)
+      - WHISPER__MODEL=${WHISPER_MODEL:-Systran/faster-whisper-small.en}
       # Preload model on startup to avoid cold-start latency
       - WHISPER__MODEL_PRELOAD=true
-      # Inference settings for faster transcription
-      - WHISPER__INFERENCE__BEAM_SIZE=1
-      - WHISPER__INFERENCE__BEST_OF=1
-      - WHISPER__INFERENCE__PATIENCE=1
+      # Inference settings: higher values = more accurate but slower
+      # beam_size=5 and best_of=5 significantly improve accuracy for proper nouns
+      - WHISPER__INFERENCE__BEAM_SIZE=${WHISPER_BEAM_SIZE:-5}
+      - WHISPER__INFERENCE__BEST_OF=${WHISPER_BEST_OF:-5}
+      - WHISPER__INFERENCE__PATIENCE=1.0
       # Keep model in memory for 10 minutes
       - WHISPER__TTL=600
     volumes:
@@ -82,6 +121,9 @@ services:
       - KOKORO_DEFAULT_VOICE=af_heart
       # Enable streaming for lower time-to-first-audio
       - KOKORO_STREAM=true
+      # Reduce log noise from Kokoro (INFO instead of DEBUG)
+      - LOG_LEVEL=${KOKORO_LOG_LEVEL:-INFO}
+      - UVICORN_LOG_LEVEL=${KOKORO_LOG_LEVEL:-info}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8880/health"]

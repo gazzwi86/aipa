@@ -1,6 +1,6 @@
 ---
 name: agent-creator
-description: Create new specialized agents for Ultra
+description: Create new specialized agents for Blu
 triggers:
   - create agent
   - new agent
@@ -10,7 +10,7 @@ triggers:
 
 # Agent Creator Skill
 
-Create new specialized agents to extend Ultra's capabilities.
+Create new specialized agents to extend Blu's capabilities.
 
 ## When to Activate
 

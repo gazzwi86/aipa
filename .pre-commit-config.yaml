@@ -1,0 +1,66 @@
+# Pre-commit hooks for AIPA
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# Note: We also have custom Claude Code hooks in .claude/hooks/ for development.
+# This config provides standardized hooks that work with CI/CD.
+
+repos:
+  # Python linting with ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(server|tests)/
+      - id: ruff-format
+        files: ^(server|tests)/
+
+  # Terraform formatting and validation
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.1
+    hooks:
+      - id: terraform_fmt
+        args:
+          - --args=-recursive
+      - id: terraform_validate
+        args:
+          - --args=-no-color
+          - --init-args=-backend=false
+      - id: terraform_tflint
+        args:
+          - --args=--only=terraform_deprecated_interpolation
+          - --args=--only=terraform_deprecated_index
+          - --args=--only=terraform_unused_declarations
+          - --args=--only=terraform_comment_syntax
+          - --args=--only=terraform_documented_outputs
+          - --args=--only=terraform_documented_variables
+          - --args=--only=terraform_typed_variables
+
+  # General file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^docs/
+      - id: end-of-file-fixer
+        exclude: ^docs/
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
+        # Only warn, don't block - we commit to main directly
+        stages: [manual]
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+        files: ^server/

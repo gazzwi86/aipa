@@ -1,17 +1,16 @@
 ---
 name: skill-creator
-description: Create new skills and agents for Ultra
+description: Create new skills and agents for Blu
 triggers:
   - create skill
   - new skill
   - add skill
-  - create agent
   - I need a skill
 ---
 
 # Skill Creator Skill
 
-Create new capabilities for Ultra.
+Create new capabilities for Blu.
 
 ## When to Activate
 
@@ -85,25 +84,6 @@ How to respond in detail.
 - One-time tasks
 - Simple lookups
 - Generic capabilities
-
-## Agent Creation
-
-For specialized roles, create agents instead:
-
-```markdown
----
-name: agent-name
-description: Role description. Use for [scenarios].
-model: sonnet
----
-
-# Agent Name
-
-You are an expert [role].
-
-## Competencies
-...
-```
 
 ## Self-Improvement
 

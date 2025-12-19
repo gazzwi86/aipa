@@ -28,12 +28,26 @@ async def require_auth(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
 ) -> bool:
-    """Dependency that requires authentication."""
+    """Dependency that requires authentication (returns 401 for API endpoints)."""
     token = get_session_token(request)
     if not token or not auth.verify_session(token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
+        )
+    return True
+
+
+async def require_auth_redirect(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+) -> bool:
+    """Dependency that requires authentication (redirects to login for HTML pages)."""
+    token = get_session_token(request)
+    if not token or not auth.verify_session(token):
+        raise HTTPException(
+            status_code=status.HTTP_302_FOUND,
+            headers={"Location": "/login"},
         )
     return True
 
@@ -59,7 +73,7 @@ async def login_page(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Ultra</title>
+    <title>Login - Blu</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -124,7 +138,7 @@ async def login_page(
 </head>
 <body>
     <div class="login-box">
-        <h1>Ultra</h1>
+        <h1>Blu</h1>
         {error_html}
         <form method="POST" action="/login">
             <input type="password" name="password" placeholder="Password" autofocus required>

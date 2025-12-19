@@ -15,7 +15,7 @@ class TestMainPage:
         # Header
         header = page.locator(".header h1")
         expect(header).to_be_visible()
-        expect(header).to_contain_text("Ultra")
+        expect(header).to_contain_text("Blu")
 
         # Navigation links
         files_link = page.locator('a[href="/files"]')

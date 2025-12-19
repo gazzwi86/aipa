@@ -7,7 +7,7 @@
 
 ## Overview
 
-AIPA (AI Personal Assistant) "Ultra" is a cost-optimized, self-hosted Claude Code agent accessible via voice and web. The architecture prioritizes minimal running costs through on-demand compute while maintaining instant availability perception.
+AIPA (AI Personal Assistant) "Blu" is a cost-optimized, self-hosted Claude Code agent accessible via voice and web. The architecture prioritizes minimal running costs through on-demand compute while maintaining instant availability perception.
 
 ---
 
@@ -93,7 +93,7 @@ The system uses an "on-demand" pattern to minimize costs:
 │         ▼                                                                            │
 │    ┌─────────────────┐                                                              │
 │    │ Show "Waking    │                                                              │
-│    │ Ultra..." overlay│                                                              │
+│    │ Blu..." overlay  │                                                              │
 │    └────────┬────────┘                                                              │
 │             │                                                                        │
 │             ▼                                                                        │
@@ -490,7 +490,7 @@ Routes requests to appropriate backends:
 │  Enter password ───────────▶ Validate ───────────▶ Set session cookie               │
 │      │                                                                               │
 │      ▼                                                                               │
-│  Redirect to /  ───────────▶ Show "Waking Ultra..." overlay                         │
+│  Redirect to /  ───────────▶ Show "Waking Blu..." overlay                           │
 │      │                                                                               │
 │      ▼                                                                               │
 │  Auto-call /status ────────▶ Lambda returns {"status":"stopped"}                    │

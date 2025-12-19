@@ -58,22 +58,20 @@ temp/
 *.tmp
 
 # Workspace (agent working directory)
-workspace/projects/
-workspace/repos/
-workspace/temp/
-workspace/files/
+workspace/*
 
 # Workspace context (sensitive data - backed up to S3 instead)
 # Keep only template files in git, exclude runtime context
-workspace/.claude/context/history/*
 !workspace/.claude/context/history/.gitkeep
-workspace/.claude/context/learnings/*
 !workspace/.claude/context/learnings/.gitkeep
-workspace/.claude/context/projects/*
 !workspace/.claude/context/projects/.gitkeep
-workspace/.claude/context/preferences/owner.md
-workspace/.claude/state/*
 !workspace/.claude/state/.gitkeep
+!workspace/.mcp.json
+!workspace/.claude/agents/*
+!workspace/.claude/commands/*
+!workspace/.claude/hooks/*
+!workspace/.claude/mcp/*
+!workspace/.claude/skills/*
 
 # Dev Claude Code local state (auto-generated)
 .claude/
@@ -92,6 +90,10 @@ htmlcov/
 *.tfstate
 *.tfstate.*
 terraform.tfvars
+tfplan
 
 # AWS
 .aws/
+
+.deepeval
+tests/results/

@@ -25,7 +25,7 @@ variable "project_name" {
 variable "agent_name" {
   description = "Name of the AI agent"
   type        = string
-  default     = "Ultra"
+  default     = "Blu"
 }
 
 # ECS Configuration

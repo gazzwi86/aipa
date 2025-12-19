@@ -1,6 +1,9 @@
-"""Session management service using DynamoDB."""
+"""Session management service using DynamoDB or SQLite."""
 
+import json
 import logging
+import os
+import sqlite3
 import uuid
 from datetime import datetime
 
@@ -23,15 +26,219 @@ from server.models.sessions import (
 logger = logging.getLogger(__name__)
 
 
-class SessionService:
-    """Manages conversation sessions in DynamoDB.
+class SQLiteSessionStore:
+    """SQLite-based session storage for local development."""
 
-    Uses a single-table design with composite keys:
+    def __init__(self, db_path: str = "sessions.db") -> None:
+        self.db_path = db_path
+        self._init_db()
+
+    def _init_db(self) -> None:
+        """Initialize SQLite database schema."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    created TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    status TEXT DEFAULT 'active',
+                    message_count INTEGER DEFAULT 0,
+                    preview TEXT DEFAULT '',
+                    artifacts TEXT DEFAULT '[]'
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    source TEXT DEFAULT 'text',
+                    FOREIGN KEY (session_id) REFERENCES sessions(id)
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_messages_session
+                ON messages(session_id, timestamp)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sessions_updated
+                ON sessions(updated DESC)
+            """)
+            conn.commit()
+        logger.info(f"SQLite session store initialized at {self.db_path}")
+
+    def create_session(self, session: Session) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO sessions (id, name, created, updated, status, message_count, preview, artifacts) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    session.id,
+                    session.name,
+                    session.created.isoformat(),
+                    session.updated.isoformat(),
+                    session.status.value,
+                    session.message_count,
+                    session.preview,
+                    json.dumps([]),
+                ),
+            )
+            conn.commit()
+
+    def get_session(self, session_id: str) -> SessionDetail | None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if not row:
+                return None
+
+            messages = []
+            msg_rows = conn.execute(
+                "SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp",
+                (session_id,),
+            ).fetchall()
+            for msg in msg_rows:
+                messages.append(
+                    SessionMessage(
+                        timestamp=datetime.fromisoformat(msg["timestamp"]),
+                        role=MessageRole(msg["role"]),
+                        content=msg["content"],
+                        source=MessageSource(msg["source"]),
+                    )
+                )
+
+            artifacts = []
+            for a in json.loads(row["artifacts"] or "[]"):
+                artifacts.append(
+                    SessionArtifact(
+                        path=a["path"],
+                        created=datetime.fromisoformat(a["created"]),
+                        type=a["type"],
+                        size=a["size"],
+                    )
+                )
+
+            return SessionDetail(
+                id=row["id"],
+                name=row["name"],
+                created=datetime.fromisoformat(row["created"]),
+                updated=datetime.fromisoformat(row["updated"]),
+                status=SessionStatus(row["status"]),
+                message_count=row["message_count"],
+                preview=row["preview"] or "",
+                artifacts=artifacts,
+                messages=messages,
+            )
+
+    def list_sessions(self, limit: int = 20) -> list[SessionSummary]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT id, name, created, updated, message_count, preview "
+                "FROM sessions ORDER BY updated DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+            return [
+                SessionSummary(
+                    id=row["id"],
+                    name=row["name"],
+                    created=datetime.fromisoformat(row["created"]),
+                    updated=datetime.fromisoformat(row["updated"]),
+                    message_count=row["message_count"],
+                    preview=row["preview"] or "",
+                )
+                for row in rows
+            ]
+
+    def add_message(self, session_id: str, message: SessionMessage) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO messages (session_id, timestamp, role, content, source) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    session_id,
+                    message.timestamp.isoformat(),
+                    message.role.value,
+                    message.content,
+                    message.source.value,
+                ),
+            )
+            # Update session
+            update_sql = """
+                UPDATE sessions
+                SET updated = ?, message_count = message_count + 1
+                WHERE id = ?
+            """
+            conn.execute(update_sql, (message.timestamp.isoformat(), session_id))
+
+            # Set preview if first user message
+            if message.role == MessageRole.USER:
+                conn.execute(
+                    "UPDATE sessions SET preview = ? WHERE id = ? AND preview = ''",
+                    (message.content[:100], session_id),
+                )
+            conn.commit()
+
+    def update_session_name(self, session_id: str, name: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("UPDATE sessions SET name = ? WHERE id = ?", (name, session_id))
+            conn.commit()
+
+    def delete_session(self, session_id: str) -> bool:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+            result = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            conn.commit()
+            return result.rowcount > 0
+
+    def add_artifact(self, session_id: str, artifact: SessionArtifact) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT artifacts FROM sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            if row:
+                artifacts = json.loads(row[0] or "[]")
+                artifacts.append(
+                    {
+                        "path": artifact.path,
+                        "created": artifact.created.isoformat(),
+                        "type": artifact.type,
+                        "size": artifact.size,
+                    }
+                )
+                conn.execute(
+                    "UPDATE sessions SET artifacts = ? WHERE id = ?",
+                    (json.dumps(artifacts), session_id),
+                )
+                conn.commit()
+
+    def get_session_for_artifact(self, artifact_path: str) -> str | None:
+        """Find which session created an artifact by scanning all sessions."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("SELECT id, artifacts FROM sessions").fetchall()
+            for row in rows:
+                artifacts = json.loads(row["artifacts"] or "[]")
+                for a in artifacts:
+                    if a.get("path") == artifact_path:
+                        return row["id"]
+        return None
+
+
+class SessionService:
+    """Manages conversation sessions in DynamoDB or SQLite.
+
+    Storage priority:
+    1. DynamoDB (if DYNAMODB_SESSIONS_TABLE is set)
+    2. SQLite (local file, persistent across restarts)
+
+    Uses a single-table design with composite keys for DynamoDB:
     - PK: SESSION#{id} or ARTIFACT#{path}
     - SK: META, MSG#{timestamp}, or SESSION#{id}
-
-    When DynamoDB is not configured, falls back to in-memory storage
-    (sessions will be lost on restart).
     """
 
     def __init__(self) -> None:
@@ -39,6 +246,7 @@ class SessionService:
         self.table_name = settings.dynamodb_sessions_table
         self.region = settings.aws_region
         self._table = None
+        self._sqlite: SQLiteSessionStore | None = None
         self._local_sessions: dict[str, SessionDetail] = {}
 
         if self.table_name:
@@ -49,12 +257,30 @@ class SessionService:
             except Exception as e:
                 logger.error(f"Failed to connect to DynamoDB: {e}")
         else:
-            logger.warning("DynamoDB sessions table not configured - using in-memory storage")
+            # Use SQLite for local persistence
+            workspace = os.getenv("WORKSPACE", "/workspace")
+            db_path = os.path.join(workspace, "sessions.db")
+            try:
+                self._sqlite = SQLiteSessionStore(db_path)
+                logger.info(f"Using SQLite session store at {db_path}")
+            except Exception as e:
+                logger.error(f"Failed to initialize SQLite: {e}")
+                logger.warning("Falling back to in-memory storage")
 
     @property
     def is_persistent(self) -> bool:
-        """Check if using persistent storage (DynamoDB) vs in-memory."""
-        return self._table is not None
+        """Check if using persistent storage (DynamoDB or SQLite) vs in-memory."""
+        return self._table is not None or self._sqlite is not None
+
+    @property
+    def storage_type(self) -> str:
+        """Get the current storage backend type."""
+        if self._table:
+            return "dynamodb"
+        elif self._sqlite:
+            return "sqlite"
+        else:
+            return "in-memory"
 
     async def create_session(self, name: str | None = None) -> Session:
         """Create a new session."""
@@ -88,6 +314,9 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to create session in DynamoDB: {e}")
                 raise
+        elif self._sqlite:
+            # SQLite persistence
+            self._sqlite.create_session(session)
         else:
             # In-memory fallback
             self._local_sessions[session.id] = SessionDetail(**session.model_dump(), messages=[])
@@ -150,6 +379,8 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to get session from DynamoDB: {e}")
                 return None
+        elif self._sqlite:
+            return self._sqlite.get_session(session_id)
         else:
             return self._local_sessions.get(session_id)
 
@@ -197,6 +428,9 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to list sessions from DynamoDB: {e}")
                 return [], None
+        elif self._sqlite:
+            # SQLite persistence (no cursor support)
+            return self._sqlite.list_sessions(limit), None
         else:
             # In-memory fallback
             sessions = [
@@ -296,6 +530,9 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to add message to DynamoDB: {e}")
                 raise
+        elif self._sqlite:
+            # SQLite persistence
+            self._sqlite.add_message(session_id, message)
         else:
             # In-memory fallback
             if session_id in self._local_sessions:
@@ -321,6 +558,8 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to update session name: {e}")
                 raise
+        elif self._sqlite:
+            self._sqlite.update_session_name(session_id, name)
         else:
             if session_id in self._local_sessions:
                 self._local_sessions[session_id].name = name
@@ -360,6 +599,8 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to add artifact: {e}")
                 raise
+        elif self._sqlite:
+            self._sqlite.add_artifact(session_id, artifact)
         else:
             if session_id in self._local_sessions:
                 self._local_sessions[session_id].artifacts.append(artifact)
@@ -378,6 +619,8 @@ class SessionService:
                     return sk.replace("SESSION#", "")
             except ClientError as e:
                 logger.error(f"Failed to get session for artifact: {e}")
+        elif self._sqlite:
+            return self._sqlite.get_session_for_artifact(artifact_path)
         else:
             for session_id, session in self._local_sessions.items():
                 for artifact in session.artifacts:
@@ -403,6 +646,8 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to delete session: {e}")
                 return False
+        elif self._sqlite:
+            return self._sqlite.delete_session(session_id)
         else:
             if session_id in self._local_sessions:
                 del self._local_sessions[session_id]
@@ -446,6 +691,12 @@ class SessionService:
             except ClientError as e:
                 logger.error(f"Failed to fork session: {e}")
                 raise
+        elif self._sqlite:
+            # SQLite: copy messages using existing methods
+            for msg in original.messages:
+                self._sqlite.add_message(new_session.id, msg)
+            if original.preview:
+                self._sqlite.update_session_name(new_session.id, new_session.name)
         else:
             # In-memory: copy messages
             if new_session.id in self._local_sessions:
